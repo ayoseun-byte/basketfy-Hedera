@@ -39,19 +39,24 @@ flowchart TD
     SC -->|Price Feeds + Rebalance| OFF[Offchain Price Oracle / AI Engine]
     OFF --> SC
     U <-->|Redeem / Swap| SC
-
+```
 ⚙️ Installation & Setup
 
 Prerequisites
 	- Node.js ≥ 18.x
 	- Hedera Testnet account (create via portal.hedera.com)
 	- Git and npm
-
+### Clone Repository
+```bash
 git clone https://github.com/yourusername/basketfy.git
-cd basketfy
-
+cd basketfy-hedera
+```
+### install dependencies 
+```bash
 npm install
-
+```
+### Configure Environments
+```bash
 HEDERA_OPERATOR_ID=0.0.xxxxx
 HEDERA_OPERATOR_KEY=302e020100300506032b657004220420xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 FACTORY_CONTRACT_ID=0.0.placeholder
@@ -59,3 +64,4 @@ HEDERA_NETWORK=testnet
 OKX_API_KEY=your_okx_key
 OKX_SECRET_KEY=your_okx_secret
 OKX_PASSPHRASE=your_okx_passphrase
+```
