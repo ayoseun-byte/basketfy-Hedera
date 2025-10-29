@@ -629,6 +629,6 @@ This project is licensed under the MIT License — see LICENSE for details.
 ## 📞 Support & Questions
 
 For setup issues or questions:
-- **GitHub Issues:** https://github.com/yourusername/basketfy/issues
+- **GitHub Issues:** https://github.com/ayoseun-btes/basketfy-hedera/issues
 - **Documentation:** Full guides in `/docs` folder
-- **Contact:** dev@basketfy.dev
+- **Contact:** jaoquin15@gmail.com
