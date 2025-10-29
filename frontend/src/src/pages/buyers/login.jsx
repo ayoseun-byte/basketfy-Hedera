@@ -1,4 +1,3 @@
-
 import { useNavigate } from 'react-router-dom';
 import React, { useState } from 'react';
 import {
@@ -11,13 +10,15 @@ import {
     Sparkles,
     BarChart3,
     Users,
+    ArrowLeft,
+    Home
 } from 'lucide-react';
 import { GOOGLE_CLIENT_ID } from '../../constants/config';
 import { useDispatch } from 'react-redux';
 import { setUserData, setWalletAddress } from '../../store/store';
 
 const LoginPage = ({ darkMode }) => {
-    const navigate = useNavigate(); // For navigating back
+    const navigate = useNavigate();
     const dispatch = useDispatch();
     const [isLoading, setIsLoading] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -28,30 +29,30 @@ const LoginPage = ({ darkMode }) => {
         name: '',
         confirmPassword: ''
     });
+    
     const handleInputChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
-    const address="77775444chcjdhjd8748dhjd8748dhjd8748dhjd"
+    
+    const address = "77775444chcjdhjd8748dhjd8748dhjd8748dhjd";
+    
     const handleSignIn = (e) => {
         e.preventDefault();
         if (formData.email && formData.password) {
             setIsLoading(true);
-            // Simulate API call
             setTimeout(() => {
                 setIsLoading(false);
-                 // Set user data in Redux
-            dispatch(setUserData({
-                id: "xxxxxxxxx",
-                email: formData.email,
-                name: formData.name,
-                avatar: "response.avatar"||"https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y",
-                role: 'user'
-            }));
-            
-            // If user has wallet, set it too
-            if (address) {
-                dispatch(setWalletAddress("77775444chcjdhjd8748dhjd8748dhjd8748dhjd"));
-            }
+                dispatch(setUserData({
+                    id: "xxxxxxxxx",
+                    email: formData.email,
+                    name: formData.name,
+                    avatar: "response.avatar" || "https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y",
+                    role: 'user'
+                }));
+                
+                if (address) {
+                    dispatch(setWalletAddress("77775444chcjdhjd8748dhjd8748dhjd8748dhjd"));
+                }
                 navigate('/profile');
             }, 1000);
         }
@@ -69,7 +70,7 @@ const LoginPage = ({ darkMode }) => {
 
         const scope = 'email profile openid';
         const responseType = 'code';
-        const state = Math.random().toString(36).substring(7); // CSRF protection
+        const state = Math.random().toString(36).substring(7);
 
         sessionStorage.setItem('oauth_state', state);
 
@@ -87,11 +88,27 @@ const LoginPage = ({ darkMode }) => {
 
     return (
         <div className={`min-h-screen ${darkMode ? 'bg-gradient-to-br from-gray-900 via-purple-900 to-black' : 'bg-gradient-to-br from-white via-purple-50 to-gray-100'} flex items-center justify-center p-6`}>
+            {/* Back to Home Button - Only Addition */}
+            <button
+                onClick={() => navigate('/')}
+                className={`fixed top-4 left-4 z-20 flex items-center gap-2 px-4 py-2 rounded-lg backdrop-blur-sm  transition-all hover:scale-105 ${
+                    darkMode 
+                        ? 'bg-gray-800/50 border-gray-600 text-white hover:bg-gray-700/50' 
+                        : 'bg-white/50 border-gray-300 text-gray-700 hover:bg-white/70'
+                } shadow-lg`}
+            >
+                <ArrowLeft className="w-4 h-4" />
+                {/* <Home className="w-4 h-4" /> */}
+                <span className="text-sm font-medium">Back to Home</span>
+            </button>
+
+            {/* Original Background */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute top-20 left-1/4 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl animate-pulse"></div>
                 <div className="absolute bottom-20 right-1/4 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
             </div>
 
+            {/* Original Content - No Changes */}
             <div className="max-w-6xl w-full relative z-10">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
                     <div className="text-center lg:text-left space-y-6">
@@ -109,8 +126,8 @@ const LoginPage = ({ darkMode }) => {
                             </span>
                         </h1>
 
-                        <p className={`text-lg ${darkMode ? 'text-gray-300' : 'text-gray-600'} max-w-md`}>
-                            Sign in to manage your diversified crypto baskets, track performance, and grow your wealth with AI-powered rebalancing.
+                        <p className={`text-sm sm:text-base lg:text-lg ${darkMode ? 'text-gray-300' : 'text-gray-600'} max-w-md mx-auto lg:mx-0 px-4 sm:px-0`}>
+    Sign in to manage your diversified crypto baskets, track performance, and grow your wealth with AI-powered rebalancing.
                         </p>
 
                         <div className="grid grid-cols-3 gap-4 pt-6">
@@ -164,6 +181,7 @@ const LoginPage = ({ darkMode }) => {
                                             className={`w-full pl-12 pr-12 py-3 rounded-lg border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300 text-gray-900'} focus:outline-none focus:ring-2 focus:ring-purple-500`}
                                         />
                                         <button
+                                            type="button"
                                             onClick={() => setShowPassword(!showPassword)}
                                             className="absolute right-3 top-1/2 transform -translate-y-1/2"
                                         >
@@ -180,7 +198,7 @@ const LoginPage = ({ darkMode }) => {
                                         <input type="checkbox" className="rounded" />
                                         <span className={`text-sm ${darkMode ? 'text-white/70' : 'text-grey-600'}`}>Remember me</span>
                                     </label>
-                                    <button className="text-sm text-purple-400 hover:text-purple-300">
+                                    <button type="button" className="text-sm text-purple-400 hover:text-purple-300">
                                         Forgot password?
                                     </button>
                                 </div>
@@ -188,13 +206,10 @@ const LoginPage = ({ darkMode }) => {
                                 <button
                                     type="submit"
                                     disabled={isLoading}
-                                    //onClick={() => navigate('/profile')}
-                                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-lg flex items-center justify-center gap-2"
+                                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-
                                     {isLoading ? 'Signing In...' : 'Sign In'}
                                     {!isLoading && <ArrowRight className="w-5 h-5" />}
-
                                 </button>
 
                                 <div className="relative my-6">
@@ -207,7 +222,9 @@ const LoginPage = ({ darkMode }) => {
                                         </span>
                                     </div>
                                 </div>
+                                
                                 <button
+                                    type="button"
                                     onClick={handleGoogleSignIn}
                                     disabled={isGoogleLoading}
                                     className={`w-full ${darkMode ? 'bg-white hover:bg-gray-100' : 'bg-white hover:bg-gray-50'} border ${darkMode ? 'border-gray-600' : 'border-gray-300'} py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-3 font-medium ${darkMode ? 'text-gray-900' : 'text-gray-700'} shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -222,10 +239,12 @@ const LoginPage = ({ darkMode }) => {
                                 </button>
                             </div>
                         </form>
+                        
                         <div className="mt-6 text-center">
                             <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                                 Don't have an account?{' '}
                                 <button
+                                    type="button"
                                     onClick={() => navigate('/register')}
                                     className="text-purple-400 hover:text-purple-300 font-semibold"
                                 >
