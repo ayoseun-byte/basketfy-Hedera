@@ -1,0 +1,515 @@
+basePath: /api/v1
+definitions:
+  models.BasketData:
+    properties:
+      basketName:
+        type: string
+      basketReferenceId:
+        type: string
+      category:
+        type: string
+      createdBy:
+        type: string
+      description:
+        type: string
+      image:
+        type: string
+      investmentAmount:
+        type: number
+      tokens:
+        items:
+          $ref: '#/definitions/models.BasketItem'
+        type: array
+      totalWeight:
+        type: number
+    required:
+    - tokens
+    type: object
+  models.BasketItem:
+    properties:
+      description:
+        type: string
+      entryPrice:
+        type: number
+      isNative:
+        type: boolean
+      token:
+        type: string
+      tokenAddress:
+        type: string
+      tokenSymbol:
+        type: string
+      weight:
+        type: number
+    required:
+    - entryPrice
+    - token
+    - tokenSymbol
+    type: object
+  models.BasketResponse:
+    properties:
+      message:
+        type: string
+      result: {}
+      status:
+        type: integer
+    type: object
+  models.BuyBasketRequest:
+    properties:
+      basketData:
+        $ref: '#/definitions/models.BasketData'
+      sessionId:
+        type: string
+      userId:
+        type: string
+    required:
+    - basketData
+    type: object
+  models.CreateBasketRequest:
+    properties:
+      address:
+        type: string
+      basketReferenceId:
+        type: string
+      category:
+        type: string
+      creator:
+        type: string
+      description:
+        type: string
+      image:
+        type: string
+      name:
+        type: string
+      symbol:
+        type: string
+      tokens:
+        items:
+          $ref: '#/definitions/models.Token'
+        type: array
+      uri:
+        type: string
+      userId:
+        type: string
+    required:
+    - creator
+    - name
+    - userId
+    type: object
+  models.Token:
+    properties:
+      isNative:
+        type: boolean
+      name:
+        type: string
+      price:
+        type: number
+      ticker:
+        type: string
+      tokenAddress:
+        type: string
+      weight:
+        type: number
+    type: object
+  models.UserBasketRequest:
+    properties:
+      basketId:
+        type: string
+      userId:
+        type: string
+    type: object
+  portfolio.BasketCatalogue:
+    properties:
+      address:
+        type: string
+      basketReferenceId:
+        type: string
+      category:
+        type: string
+      createdAt:
+        type: string
+      creator:
+        type: string
+      description:
+        type: string
+      holders:
+        type: integer
+      id:
+        type: string
+      image:
+        type: string
+      name:
+        type: string
+      performance7d:
+        type: number
+      performance30d:
+        type: number
+      symbol:
+        type: string
+      tokens:
+        items:
+          $ref: '#/definitions/portfolio.BasketToken'
+        type: array
+      updatedAt:
+        type: string
+      uri:
+        type: string
+      userId:
+        type: string
+    type: object
+  portfolio.BasketInvestment:
+    properties:
+      basketName:
+        type: string
+      basketReferenceId:
+        type: string
+      category:
+        type: string
+      createdAt:
+        type: string
+      description:
+        type: string
+      image:
+        type: string
+      riskScore:
+        type: number
+      tokens:
+        items:
+          $ref: '#/definitions/portfolio.TokenInfo'
+        type: array
+      totalRebalanceSessions:
+        type: integer
+      totalWeight:
+        type: number
+      updatedAt:
+        type: string
+    type: object
+  portfolio.BasketToken:
+    properties:
+      isNative:
+        type: boolean
+      name:
+        type: string
+      price:
+        type: number
+      quantity:
+        type: number
+      ticker:
+        type: string
+      tokenAddress:
+        type: string
+      weight:
+        type: number
+    type: object
+  portfolio.TokenInfo:
+    properties:
+      closing_price:
+        type: number
+      description:
+        type: string
+      entry_price:
+        type: number
+      isNative:
+        type: boolean
+      name:
+        type: string
+      quantity:
+        type: number
+      symbol:
+        type: string
+      tokenAddress:
+        type: string
+      weight:
+        type: number
+    type: object
+  portfolio.UserBasket:
+    properties:
+      basketInvestments:
+        items:
+          $ref: '#/definitions/portfolio.BasketInvestment'
+        type: array
+      createdAt:
+        type: string
+      updatedAt:
+        type: string
+      user_id:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: This is the API server for Basketfy AI application
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Basketfy AI API
+  version: "1.0"
+paths:
+  /api/v1/buy-basket:
+    post:
+      consumes:
+      - application/json
+      description: Handles the purchase of a basket by a user.
+      parameters:
+      - description: Buy Basket payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.BuyBasketRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Basket purchase successful
+          schema:
+            $ref: '#/definitions/models.BasketResponse'
+        "400":
+          description: Invalid request payload
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Buy a basket
+      tags:
+      - Basket
+  /api/v1/create-basket:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new basket with the provided details.
+      parameters:
+      - description: Create Basket payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateBasketRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Basket created successfully
+          schema:
+            $ref: '#/definitions/models.BasketResponse'
+        "400":
+          description: Invalid request payload or validation failed
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create a new basket
+      tags:
+      - Basket
+  /api/v1/get-all-basket:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves all baskets with an optional limit.
+      parameters:
+      - description: Limit the number of baskets returned
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: All Basket data retrieved successfully
+          schema:
+            items:
+              $ref: '#/definitions/portfolio.BasketCatalogue'
+            type: array
+        "400":
+          description: Invalid limit query parameter
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get all baskets
+      tags:
+      - Basket
+  /api/v1/get-single-basket:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a single basket by its ID.
+      parameters:
+      - description: Basket ID
+        in: query
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Single basket data
+          schema:
+            $ref: '#/definitions/portfolio.BasketCatalogue'
+        "400":
+          description: Missing or invalid basket ID
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get single basket
+      tags:
+      - Basket
+  /api/v1/get-user-basket:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the basket(s) associated with a user by user ID.
+      parameters:
+      - description: User ID
+        in: query
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User basket data
+          schema:
+            $ref: '#/definitions/models.BasketResponse'
+        "400":
+          description: Missing or invalid user ID
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get user basket
+      tags:
+      - Basket
+  /api/v1/get-user-basket-analytics:
+    get:
+      consumes:
+      - application/json
+      description: Returns analytics data for the user's portfolio including TVL,
+        7-day trend, risk score, etc.
+      parameters:
+      - description: User ID
+        in: query
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Analytics data for the user's portfolio
+          schema:
+            $ref: '#/definitions/portfolio.UserBasket'
+        "400":
+          description: Missing or invalid user ID
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Generate portfolio analytics
+      tags:
+      - Analytics
+  /api/v1/get-user-baskets:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves all user baskets with an optional limit.
+      parameters:
+      - description: Limit the number of baskets returned
+        in: query
+        name: limit
+        type: integer
+      - description: User ID
+        in: query
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: All Basket data retrieved successfully
+          schema:
+            items:
+              $ref: '#/definitions/portfolio.UserBasket'
+            type: array
+        "400":
+          description: Invalid limit query parameter
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get user baskets
+      tags:
+      - Basket
+  /rebalance-ai-stream:
+    post:
+      consumes:
+      - application/json
+      description: Streams an AI-generated response for a user's basket rebalance
+        request.
+      parameters:
+      - description: User basket rebalance request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UserBasketRequest'
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: Streamed AI response
+          schema:
+            type: string
+        "400":
+          description: Invalid request payload
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Generate streaming AI response
+      tags:
+      - AI
+schemes:
+- http
+- https
+swagger: "2.0"
