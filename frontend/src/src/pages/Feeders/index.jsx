@@ -1,9 +1,18 @@
 import React, { useState } from 'react';
 import { Wallet, TrendingUp, Activity, DollarSign, ArrowUpRight, ArrowDownLeft, Plus, X, ExternalLink, ChevronDown, PieChart, BarChart3, Clock, Zap, ArrowRight, Menu } from 'lucide-react';
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart as RePieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useHashpackWallet } from  '../../hook/useHashpackWallet';
 
 const FeederDashboard = () => {
-  const [isConnected, setIsConnected] = useState(false);
+   const { 
+    accountId: walletAddress, 
+    connected, 
+    loading,
+    connect, 
+    disconnect, 
+    formatAddress 
+  } = useHashpackWallet();
+
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [selectedChain, setSelectedChain] = useState('');
@@ -12,25 +21,25 @@ const FeederDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const chains = [
-    { id: 'ethereum', name: 'Ethereum', icon: '⟠', color: '#627EEA' },
-    { id: 'polygon', name: 'Polygon', icon: '⬡', color: '#8247E5' },
-    { id: 'arbitrum', name: 'Arbitrum', icon: '◢', color: '#28A0F0' },
-    { id: 'base', name: 'Base', icon: '🔵', color: '#0052FF' }
-  ];
+ const chains = [
+  { id: 'hedera', name: 'Hedera', icon: '⚡', color: '#00C4B4' },
+  { id: 'ethereum', name: 'Ethereum', icon: '⟠', color: '#627EEA' },
+  { id: 'polygon', name: 'Polygon', icon: '⬡', color: '#8247E5' },
+  { id: 'arbitrum', name: 'Arbitrum', icon: '◢', color: '#28A0F0' }
+];
 
-  const tokens = [
-    { id: 'usdc', name: 'USDC', balance: '10,500.00', logo: '💵' },
-    { id: 'fdk', name: 'FDK', balance: '5,200.00', logo: '🪙' },
-    { id: 'husd', name: 'HUSD', balance: '8,750.00', logo: '💰' }
-  ];
+ const tokens = [
+  { id: 'hbar', name: 'HBAR', balance: '10,500.00', logo: '⚡' },
+  { id: 'usdc', name: 'USDC', balance: '5,200.00', logo: '💵' },
+  { id: 'fdk', name: 'FDK', balance: '8,750.00', logo: '🪙' }
+];
 
-  const liquidityData = [
-    { chain: 'Ethereum', amount: 25000, percentage: 35, apy: 8.5, utilization: 68, idle: 8000, active: 17000 },
-    { chain: 'Polygon', amount: 18500, percentage: 26, apy: 9.2, utilization: 72, idle: 5180, active: 13320 },
-    { chain: 'Arbitrum', amount: 15200, percentage: 21, apy: 7.8, utilization: 65, idle: 5320, active: 9880 },
-    { chain: 'Base', amount: 12800, percentage: 18, apy: 8.9, utilization: 70, idle: 3840, active: 8960 }
-  ];
+ const liquidityData = [
+  { chain: 'Hedera', amount: 32000, percentage: 40, apy: 9.5, utilization: 75, idle: 8000, active: 24000 },
+  { chain: 'Ethereum', amount: 25000, percentage: 31, apy: 8.5, utilization: 68, idle: 8000, active: 17000 },
+  { chain: 'Polygon', amount: 15000, percentage: 19, apy: 9.2, utilization: 72, idle: 4200, active: 10800 },
+  { chain: 'Arbitrum', amount: 8000, percentage: 10, apy: 7.8, utilization: 65, idle: 2800, active: 5200 }
+];
 
   const earningsHistory = [
     { date: 'Oct 20', idle: 120, usage: 80, total: 200 },
@@ -59,16 +68,11 @@ const FeederDashboard = () => {
   }));
 
   const recentActivity = [
-    { type: 'deposit', amount: 5000, token: 'USDC', chain: 'Ethereum', time: '2 hours ago', txHash: '0x1234...5678' },
-    { type: 'yield', amount: 125.50, token: 'USDC', chain: 'Polygon', time: '5 hours ago', txHash: '0xabcd...efgh' },
-    { type: 'usage', amount: 2500, token: 'FDK', chain: 'Arbitrum', time: '8 hours ago', txHash: '0x9876...5432' },
-    { type: 'withdraw', amount: 1500, token: 'HUSD', chain: 'Base', time: '12 hours ago', txHash: '0xfedc...ba98' }
-  ];
-
-  const handleConnect = () => {
-    setIsConnected(true);
-    setTimeout(() => setShowDepositModal(true), 500);
-  };
+  { type: 'deposit', amount: 5000, token: 'HBAR', chain: 'Hedera', time: '2 hours ago', txHash: '0.0.1234...5678' },
+  { type: 'yield', amount: 125.50, token: 'USDC', chain: 'Hedera', time: '5 hours ago', txHash: '0.0.abcd...efgh' },
+  { type: 'usage', amount: 2500, token: 'FDK', chain: 'Hedera', time: '8 hours ago', txHash: '0.0.9876...5432' },
+  { type: 'withdraw', amount: 1500, token: 'HBAR', chain: 'Hedera', time: '12 hours ago', txHash: '0.0.fedc...ba98' }
+];
 
   const handleDeposit = () => {
     if (selectedChain && selectedToken && amount) {
@@ -112,7 +116,7 @@ const FeederDashboard = () => {
         <div className="absolute w-96 h-96 bg-pink-500/10 rounded-full blur-3xl -bottom-48 -right-48 animate-pulse" style={{ animationDelay: '1s' }} />
       </div>
 
-      {/* Header - Fixed Responsive Issues */}
+      {/* Header - UPDATED WALLET CONNECTION */}
       <header className="relative border-b border-purple-500/20 backdrop-blur-xl bg-black/30 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
@@ -125,7 +129,7 @@ const FeederDashboard = () => {
                 </div>
                 <div>
                   <h1 className="text-lg sm:text-2xl font-bold text-white">Basketfy Feeders</h1>
-                  <p className="text-xs sm:text-sm text-purple-300">Liquidity Provider</p>
+                  <p className="text-xs sm:text-sm text-purple-300">Liquidity Provider on Hedera</p>
                 </div>
               </div>
               
@@ -138,18 +142,18 @@ const FeederDashboard = () => {
               </button>
             </div>
 
-            {/* Desktop Actions */}
+            {/* Desktop Actions - UPDATED */}
             <div className="hidden sm:flex items-center gap-2 lg:gap-3">
-              {!isConnected ? (
-                
-                <button
-                  onClick={handleConnect}
-                  className="px-6 py-2.5 sm:px-8 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl font-semibold flex items-center gap-2 transition-all shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 text-sm sm:text-base"
-                >
-                  <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />
-                  Connect Wallet
-                </button>
-              ) : (
+              {!connected ? (
+<button
+  onClick={connect}
+  disabled={loading}
+  className="px-6 py-2.5 sm:px-8 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl font-semibold flex items-center gap-2 transition-all shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 text-sm sm:text-base"
+>
+  <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />
+  {loading ? "Connecting..." : "Connect Hashpack"}
+  
+</button>) : (
                 <div className="flex items-center gap-2 lg:gap-3">
                   <button
                     onClick={() => setShowDepositModal(true)}
@@ -167,24 +171,33 @@ const FeederDashboard = () => {
                   </button>
                   <div className="px-3 py-2 sm:px-5 sm:py-2.5 bg-purple-500/20 border border-purple-500/30 rounded-lg text-white font-mono text-xs sm:text-sm flex items-center gap-2">
                     <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-400 rounded-full animate-pulse" />
-                    0x742d...5f3a
+                    {formatAddress(walletAddress) || 'Not connected'}
                   </div>
+                  <button
+      onClick={disconnect}
+      className="px-3 py-2 sm:px-4 sm:py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium flex items-center gap-2 transition-all text-xs sm:text-sm"
+      title="Disconnect Wallet"
+    >
+      <X className="w-3 h-3 sm:w-4 sm:h-4" />
+    </button>
                 </div>
               )}
             </div>
 
-            {/* Mobile Menu */}
+            {/* Mobile Menu - UPDATED */}
             {isMobileMenuOpen && (
               <div className="sm:hidden pt-3 border-t border-purple-500/20">
-                {!isConnected ? (
-                  <button
-                    onClick={handleConnect}
-                    className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-lg font-semibold flex items-center justify-center gap-2 transition-all shadow-lg"
-                  >
-                    <Wallet className="w-5 h-5" />
-                    Connect Wallet
-                  </button>
-                ) : (
+                {!connected ? (
+  <button
+  onClick={connect}
+  disabled={loading}
+  className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-lg font-semibold flex items-center justify-center gap-2 transition-all shadow-lg"
+>
+  <Wallet className="w-5 h-5" />
+  {loading ? "Connecting..." : "Connect Hashpack"}
+ 
+</button>
+) : (
                   <div className="flex flex-col gap-2">
                     <button
                       onClick={() => setShowDepositModal(true)}
@@ -200,6 +213,12 @@ const FeederDashboard = () => {
                       <ArrowUpRight className="w-4 h-4" />
                       Withdraw
                     </button>
+                    <button
+                      onClick={disconnect}
+                      className="w-full px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-all"
+                    >
+                      Disconnect
+                    </button>
                   </div>
                 )}
               </div>
@@ -208,7 +227,7 @@ const FeederDashboard = () => {
         </div>
       </header>
 
-      {isConnected && (
+      {connected && (
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           {/* Hero Stats Section - Fixed Grid */}
           <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">

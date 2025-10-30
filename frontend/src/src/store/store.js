@@ -40,6 +40,9 @@ const globalSlice = createSlice({
                 state.walletConnected = true;
             }
         },
+        setWalletName: (state, action) => {
+  state.walletName = action.payload;
+},
         
         setFormattedAddress(state, action) {
             state.formattedAddress = action.payload;
@@ -85,6 +88,7 @@ export const {
     toggleDarkMode,
     setWalletConnected,
     setWalletAddress,
+    setWalletName,
     setFormattedAddress,
     setCuratorData,
     clearCuratorData,

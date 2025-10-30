@@ -37,6 +37,7 @@ import PrivacyPolicy from './src/pages/privacyPolicy';
 
 
 
+
 // Mock data
 const mockBaskets = [
   {
@@ -202,10 +203,33 @@ const App = () => {
   //   );
   // }
 
+   const HashpackDebug = () => {
+  useEffect(() => {
+    console.log('=== HASHPACK DEBUG INFO ===');
+    console.log('window.hedera:', window.hedera);
+    console.log('window.hashpack:', window.hashpack);
+    console.log('All window properties:', Object.keys(window).filter(key => 
+      key.includes('hash') || key.includes('hedera') || key.includes('hbar')
+    ));
+    
+    // Check if any object looks like a wallet provider
+    const potentialProviders = Object.keys(window).filter(key => {
+      const obj = window[key];
+      return obj && typeof obj === 'object' && typeof obj.request === 'function';
+    });
+    console.log('Potential wallet providers:', potentialProviders);
+  }, []);
+
+  return null;
+};
 
   return (
+
+   
+  
     <Router> {/* Wrap your entire app with Router */}
       <>
+      <HashpackDebug />
         <Routes> {/* Define your routes here */}
           <Route path="/" element={
             <LandingPage
@@ -335,6 +359,7 @@ const App = () => {
         />
       </>
     </Router>
+  
   );
 };
 
