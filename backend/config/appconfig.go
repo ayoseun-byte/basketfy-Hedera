@@ -12,19 +12,21 @@ import (
 
 // Config stores the application configuration from environment variables
 type ConfigApplication struct {
-	Env                string
-	APIKey             string
-	PORT               string
-	GeminiAPIKey       string
-	DBName             string
-	DBConnURL          string
-	OKXURL             string
-	PRICEURL           string
-	OKXSecret          string
-	OKXAPIKey          string // Added OKXAPIKey
-	OKXPassphrase      string // Added OKXPassphrase
-	JWTSecret          string
-	OKXProjectID       string
+	Env          string
+	APIKey       string
+	PORT         string
+	GeminiAPIKey string
+	DBName       string
+	DBConnURL    string
+	OKXURL       string
+	PRICEURL     string
+	// OKX Config
+	OKXSecret     string
+	OKXAPIKey     string // Added OKXAPIKey
+	OKXPassphrase string // Added OKXPassphrase
+	JWTSecret     string
+	OKXProjectID  string
+	// Google OAuth Config
 	GoogleClientID     string
 	GoogleClientSecret string
 	GoogleRedirectURI  string
@@ -33,10 +35,9 @@ type ConfigApplication struct {
 	HederaOperatorKey string
 	HederaNetwork     string
 	MirrorNodeURL     string
-
 	// Contract IDs
-	FactoryContractID string
-	AuditTopicID      string
+	HederaFactoryContractID string
+	HederaTopicID           string
 }
 
 var AppConfig ConfigApplication
@@ -167,4 +168,14 @@ func init() {
 	if !present {
 		panic("HEDERA_NETWORK environment variable is not set")
 	}
+
+	AppConfig.HederaTopicID, present = os.LookupEnv("HEDERA_TOPIC_ID")
+	if !present {
+		panic("HEDERA_TOPIC_ID environment variable is not set")
+	}
+	AppConfig.HederaFactoryContractID, present = os.LookupEnv("HEDERA_FACTORY_CONTRACT_ADDRESS")
+	if !present {
+		panic("FACTORY_CONTRACT_ADDRESS environment variable is not set")
+	}
+
 }

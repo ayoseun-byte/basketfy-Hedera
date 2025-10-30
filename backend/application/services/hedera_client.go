@@ -1,21 +1,23 @@
-package hedera
+package services
 
 import (
 	"basai/config"
 	"context"
+	"fmt"
 
 	"log"
 
-	hdrsdk "github.com/hashgraph/hedera-sdk-go/v2"
+	hdrsdk "github.com/hiero-ledger/hiero-sdk-go/v2/sdk"
 )
 
 type HederaClient struct {
 	client *hdrsdk.Client
-	cfg    *config.AppConfig
+	cfg    *config.ConfigApplication
 }
 
 // NewHederaClient initializes Hedera SDK client
-func NewHederaClient(cfg *config.AppConfig) (*HederaClient, error) {
+func NewHederaClient() (*HederaClient, error) {
+	cfg := &config.AppConfig
 	var client *hdrsdk.Client
 
 	if cfg.HederaNetwork == "mainnet" {
@@ -23,9 +25,21 @@ func NewHederaClient(cfg *config.AppConfig) (*HederaClient, error) {
 	} else {
 		client = hdrsdk.ClientForTestnet()
 	}
+	opID, err := hdrsdk.AccountIDFromString(cfg.HederaOperatorID)
+	if err != nil {
+		return nil, err
+	}
+	opKeys, err := hdrsdk.PrivateKeyFromString(cfg.HederaOperatorKey)
+	if err != nil {
+		return nil, err
+	}
+	txfees, err := hdrsdk.HbarFromString("10000")
+	if err != nil {
+		return nil, err
+	}
+	client.SetOperator(opID, opKeys)
 
-	client.SetOperator(cfg.HederaOperatorID, cfg.HederaOperatorKey)
-	client.SetDefaultMaxTransactionFee(hdrsdk.HbarFromCents(10000)) // 100 HBAR max
+	client.SetDefaultMaxTransactionFee(txfees) // 100 HBAR max
 
 	return &HederaClient{
 		client: client,
@@ -33,24 +47,63 @@ func NewHederaClient(cfg *config.AppConfig) (*HederaClient, error) {
 	}, nil
 }
 
+// CreateHederaAccount creates a new Hedera account with initial balance
+func (hc *HederaClient) CreateHederaAccount() (string, string, error) {
+	// generate a new key pair
+	newPrivateKey, _ := hdrsdk.PrivateKeyGenerateEcdsa()
+	newPublicKey := newPrivateKey.PublicKey()
+	// build & execute the account creation transaction
+	transaction := hdrsdk.NewAccountCreateTransaction().
+		SetECDSAKeyWithAlias(newPublicKey).   // set the account key
+		SetInitialBalance(hdrsdk.NewHbar(20)) // fund with 20 HBAR
+
+	// execute the transaction and get response
+	txResponse, err := transaction.Execute(hc.client)
+	if err != nil {
+		return "", "", nil
+	}
+
+	// get the receipt to extract the new account ID
+	receipt, err := txResponse.GetReceipt(hc.client)
+	if err != nil {
+		return "", "", nil
+	}
+
+	newAccountId := *receipt.AccountID
+
+	fmt.Printf("Hedera Account created: %s\n", newAccountId.String())
+	fmt.Printf("EVM Address: 0x%s\n", newPublicKey.ToEvmAddress())
+
+	return newAccountId.String(), newPrivateKey.String(), nil
+
+}
+
 // CreateFungibleToken creates a new HTS fungible token (bToken)
 func (hc *HederaClient) CreateFungibleToken(ctx context.Context, name, symbol string) (hdrsdk.TokenID, error) {
+	payer, err := hc.ConvertStringToPrivateKey(hc.cfg.HederaOperatorKey)
+	if err != nil {
+		return hdrsdk.TokenID{}, err
+	}
+	opID, err := hc.ConvertStringToAccountID(hc.cfg.HederaOperatorID)
+	if err != nil {
+		return hdrsdk.TokenID{}, err
+	}
 	txn, err := hdrsdk.NewTokenCreateTransaction().
 		SetTokenName(name).
 		SetTokenSymbol(symbol).
 		SetDecimals(8).
 		SetInitialSupply(0).
-		SetTreasuryAccountID(hc.cfg.HederaOperatorID).
-		SetAdminKey(hc.cfg.HederaOperatorKey).
-		SetFreezeKey(hc.cfg.HederaOperatorKey).
-		SetSupplyKey(hc.cfg.HederaOperatorKey).
-		SetWipeKey(hc.cfg.HederaOperatorKey).
+		SetTreasuryAccountID(opID).
+		SetAdminKey(payer).
+		SetFreezeKey(payer).
+		SetSupplyKey(payer).
+		SetWipeKey(payer).
 		FreezeWith(hc.client)
 	if err != nil {
 		return hdrsdk.TokenID{}, err
 	}
 
-	txn.Sign(hc.cfg.HederaOperatorKey)
+	txn.Sign(payer)
 
 	resp, err := txn.Execute(hc.client)
 	if err != nil {
@@ -68,19 +121,27 @@ func (hc *HederaClient) CreateFungibleToken(ctx context.Context, name, symbol st
 
 // CreateNonFungibleToken creates a Basket Identity NFT
 func (hc *HederaClient) CreateNonFungibleToken(ctx context.Context, name, symbol string) (hdrsdk.TokenID, error) {
+	payer, err := hc.ConvertStringToPrivateKey(hc.cfg.HederaOperatorKey)
+	if err != nil {
+		return hdrsdk.TokenID{}, err
+	}
+	opID, err := hc.ConvertStringToAccountID(hc.cfg.HederaOperatorID)
+	if err != nil {
+		return hdrsdk.TokenID{}, err
+	}
 	txn, err := hdrsdk.NewTokenCreateTransaction().
 		SetTokenName(name).
 		SetTokenSymbol(symbol).
 		SetTokenType(hdrsdk.TokenTypeNonFungibleUnique).
-		SetTreasuryAccountID(hc.cfg.HederaOperatorID).
-		SetAdminKey(hc.cfg.HederaOperatorKey).
-		SetSupplyKey(hc.cfg.HederaOperatorKey).
+		SetTreasuryAccountID(opID).
+		SetAdminKey(payer).
+		SetSupplyKey(payer).
 		FreezeWith(hc.client)
 	if err != nil {
 		return hdrsdk.TokenID{}, err
 	}
 
-	txn.Sign(hc.cfg.HederaOperatorKey)
+	txn.Sign(payer)
 
 	resp, err := txn.Execute(hc.client)
 	if err != nil {
@@ -98,6 +159,10 @@ func (hc *HederaClient) CreateNonFungibleToken(ctx context.Context, name, symbol
 
 // MintToken mints bToken supply
 func (hc *HederaClient) MintToken(ctx context.Context, tokenID hdrsdk.TokenID, amount uint64) error {
+	payer, err := hc.ConvertStringToPrivateKey(hc.cfg.HederaOperatorKey)
+	if err != nil {
+		return err
+	}
 	txn, err := hdrsdk.NewTokenMintTransaction().
 		SetTokenID(tokenID).
 		SetAmount(amount).
@@ -106,7 +171,7 @@ func (hc *HederaClient) MintToken(ctx context.Context, tokenID hdrsdk.TokenID, a
 		return err
 	}
 
-	txn.Sign(hc.cfg.HederaOperatorKey)
+	txn.Sign(payer)
 
 	resp, err := txn.Execute(hc.client)
 	if err != nil {
@@ -119,6 +184,10 @@ func (hc *HederaClient) MintToken(ctx context.Context, tokenID hdrsdk.TokenID, a
 
 // BurnToken burns bToken supply
 func (hc *HederaClient) BurnToken(ctx context.Context, tokenID hdrsdk.TokenID, amount uint64) error {
+	payer, err := hc.ConvertStringToPrivateKey(hc.cfg.HederaOperatorKey)
+	if err != nil {
+		return err
+	}
 	txn, err := hdrsdk.NewTokenBurnTransaction().
 		SetTokenID(tokenID).
 		SetAmount(amount).
@@ -127,7 +196,7 @@ func (hc *HederaClient) BurnToken(ctx context.Context, tokenID hdrsdk.TokenID, a
 		return err
 	}
 
-	txn.Sign(hc.cfg.HederaOperatorKey)
+	txn.Sign(payer)
 
 	resp, err := txn.Execute(hc.client)
 	if err != nil {
@@ -140,16 +209,20 @@ func (hc *HederaClient) BurnToken(ctx context.Context, tokenID hdrsdk.TokenID, a
 
 // CreateTopic creates HCS topic for audit logging
 func (hc *HederaClient) CreateTopic(ctx context.Context, memo string) (hdrsdk.TopicID, error) {
+	payer, err := hc.ConvertStringToPrivateKey(hc.cfg.HederaOperatorKey)
+	if err != nil {
+		return hdrsdk.TopicID{}, err
+	}
 	txn, err := hdrsdk.NewTopicCreateTransaction().
 		SetTopicMemo(memo).
-		SetAdminKey(hc.cfg.HederaOperatorKey).
-		SetSubmitKey(hc.cfg.HederaOperatorKey).
+		SetAdminKey(payer).
+		SetSubmitKey(payer).
 		FreezeWith(hc.client)
 	if err != nil {
 		return hdrsdk.TopicID{}, err
 	}
 
-	txn.Sign(hc.cfg.HederaOperatorKey)
+	txn.Sign(payer)
 
 	resp, err := txn.Execute(hc.client)
 	if err != nil {
@@ -167,6 +240,10 @@ func (hc *HederaClient) CreateTopic(ctx context.Context, memo string) (hdrsdk.To
 
 // SubmitMessage submits audit log message to HCS
 func (hc *HederaClient) SubmitMessage(ctx context.Context, topicID hdrsdk.TopicID, message []byte) (hdrsdk.TransactionID, error) {
+	payer, err := hc.ConvertStringToPrivateKey(hc.cfg.HederaOperatorKey)
+	if err != nil {
+		return hdrsdk.TransactionID{}, err
+	}
 	txn, err := hdrsdk.NewTopicMessageSubmitTransaction().
 		SetTopicID(topicID).
 		SetMessage(message).
@@ -175,7 +252,7 @@ func (hc *HederaClient) SubmitMessage(ctx context.Context, topicID hdrsdk.TopicI
 		return hdrsdk.TransactionID{}, err
 	}
 
-	txn.Sign(hc.cfg.HederaOperatorKey)
+	txn.Sign(payer)
 
 	resp, err := txn.Execute(hc.client)
 	if err != nil {

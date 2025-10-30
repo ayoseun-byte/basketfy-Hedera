@@ -1,5 +1,11 @@
 package models
 
+const (
+	Success  = "success"
+	Failure  = "failure"
+	Purchase = "BASKET_PURCHASE"
+)
+
 type CreateBasketPayload struct {
 	Name               string   `json:"name" binding:"required"`
 	Theme              string   `json:"theme" binding:"required"`

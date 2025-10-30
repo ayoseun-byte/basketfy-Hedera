@@ -1,177 +1,151 @@
 package handlers
 
+import (
+	"basai/application/services"
+	"basai/config"
+	"log"
+
+	"fmt"
+
+	"net/http"
+
+	"github.com/labstack/echo/v4"
+)
+
 type BasketHandler struct {
-	hederaService *HederaService
-	vaultService  *VaultService
-	topicID       hedera.TopicID
+	hederaService *services.HederaClient
+	cfg           *config.ConfigApplication
+	topicID       string // Add missing field
 }
 
-func NewBasketHandler(hs *HederaService, vs *VaultService, topicID hedera.TopicID) *BasketHandler {
+func NewBasketHandler() (*BasketHandler, error) {
+	cfg := &config.AppConfig
+	fmt.Println("Hedera Topic ID:", cfg.HederaTopicID)
+	hs, err := services.NewHederaClient()
+	if err != nil {
+		log.Fatalf("Failed to initialize Hedera client: %v", err)
+	}
+
 	return &BasketHandler{
 		hederaService: hs,
-		vaultService:  vs,
-		topicID:       topicID,
-	}
-}
-
-// Health check endpoint
-func (bh *BasketHandler) Health(c *gin.Context) {
-	c.JSON(200, gin.H{"status": "healthy", "network": cfg.HederaNetwork})
+		cfg:           cfg,               // Store config
+		topicID:       cfg.HederaTopicID, // Initialize topic ID from config
+	}, nil // Return nil error on success
 }
 
 // CreateBasket creates a new thematic basket
-func (bh *BasketHandler) CreateBasket(c *gin.Context) {
-	var req CreateBasketRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
-		return
-	}
-
-	ctx := c.Request.Context()
+func (bh *BasketHandler) DeployBasketFactory(c echo.Context) error {
 
 	// Create HTS tokens (bToken + NFT)
-	bTokenID, nftID, err := bh.hederaService.CreateBasketTokens(ctx, req.Name, req.TokenName, req.TokenSymbol)
+	contractID, err := bh.hederaService.GetBasketFactoryVersion()
 	if err != nil {
-		c.JSON(500, gin.H{"error": fmt.Sprintf("Failed to create tokens: %v", err)})
-		return
+		return c.JSON(http.StatusInternalServerError, map[string]any{
+			"error": fmt.Sprintf("Failed to create tokens: %v", err),
+		})
 	}
-
-	// Log to HCS
-	_, err = bh.hederaService.LogToHCS(ctx, bh.topicID, "BASKET_CREATED", 0, c.ClientIP(), fmt.Sprintf("Created basket: %s", req.Name))
-	if err != nil {
-		log.Printf("Warning: failed to log to HCS: %v", err)
-	}
-
-	c.JSON(201, gin.H{
-		"basket_id": 1,
-		"btoken_id": bTokenID.String(),
-		"nft_id":    nftID.String(),
-		"name":      req.Name,
-		"theme":     req.Theme,
+	return c.JSON(http.StatusCreated, map[string]any{
+		"contract_id": contractID,
 	})
 }
 
-// BuyBasket handles user basket purchase
-func (bh *BasketHandler) BuyBasket(c *gin.Context) {
-	var req BuyBasketRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
-		return
-	}
+// // CreateBasket creates a new thematic basket
+// func (bh *BasketHandler) CreateBasket(c echo.Context) error {
+// 	var req models.CreateBasketRequest
+// 	if err := c.Bind(&req); err != nil {
+// 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+// 			"error": "Failed to bind request payload: " + err.Error(),
+// 		})
+// 	}
+// 	ctx := c.Request().Context()
 
-	ctx := c.Request.Context()
+// 	// Create HTS tokens (bToken + NFT)
+// 	bTokenID, nftID, err := bh.hederaService.CreateBasketTokens(ctx, req.Name, req.Name, req.Symbol)
+// 	if err != nil {
+// 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+// 			"error": fmt.Sprintf("Failed to create tokens: %v", err),
+// 		})
+// 	}
 
-	// In production: validate stablecoin token, call smart contract
-	// Simulate: mint bToken
-	bTokenAmount := req.StablecoinAmount * 99 / 100 // 1% protocol fee
+// 	// Log to HCS
+// 	_, err = bh.hederaService.SubmitMessage(ctx, bh.topicID, "BASKET_CREATED", 0, c.RealIP(),
+// 		fmt.Sprintf("Created basket: %s", req.Name))
+// 	if err != nil {
+// 		log.Printf("Warning: failed to log to HCS: %v", err)
+// 	}
 
-	// Log to HCS
-	_, err := bh.hederaService.LogToHCS(ctx, bh.topicID, "BASKET_PURCHASE", req.BasketID, c.ClientIP(), fmt.Sprintf("Purchased %d bTokens", bTokenAmount))
-	if err != nil {
-		log.Printf("Warning: failed to log to HCS: %v", err)
-	}
+// 	return c.JSON(http.StatusCreated, map[string]interface{}{
+// 		"basket_id": 1,
+// 		"btoken_id": bTokenID,
+// 		"nft_id":    nftID,
+// 		"name":      req.Name,
+// 		"theme":     req.Category,
+// 	})
+// }
 
-	c.JSON(201, gin.H{
-		"basket_id":         req.BasketID,
-		"stablecoin_amount": req.StablecoinAmount,
-		"btoken_minted":     bTokenAmount,
-		"timestamp":         time.Now().Unix(),
-	})
-}
+// // BuyBasket handles user basket purchase
+// func (bh *BasketHandler) BuyBasket(c echo.Context) error {
+// 	var req models.BuyBasketRequest
+// 	if err := c.Bind(&req); err != nil {
+// 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+// 			"error": err.Error(),
+// 		})
+// 	}
 
-// RedeemBasket handles basket redemption
-func (bh *BasketHandler) RedeemBasket(c *gin.Context) {
-	var req RedeemBasketRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
-		return
-	}
+// 	ctx := c.Request().Context()
 
-	ctx := c.Request.Context()
+// 	// Create HTS tokens (bToken + NFT)
+// 	bTokenID, nftID, err := bh.hederaService.MintToken(ctx, req.Name, req.Name, req.Symbol)
+// 	if err != nil {
+// 		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+// 			"error": fmt.Sprintf("Failed to create tokens: %v", err),
+// 		})
+// 	}
 
-	// In production: call smart contract burn
-	stablecoinReturned := req.BTokenAmount * 99 / 100
+// 	// In production: validate stablecoin token, call smart contract
+// 	// Simulate: mint bToken
+// 	bTokenAmount := req.StablecoinAmount * 99 / 100 // 1% protocol fee
 
-	// Log to HCS
-	_, err := bh.hederaService.LogToHCS(ctx, bh.topicID, "BASKET_REDEMPTION", req.BasketID, c.ClientIP(), fmt.Sprintf("Redeemed %d bTokens", req.BTokenAmount))
-	if err != nil {
-		log.Printf("Warning: failed to log to HCS: %v", err)
-	}
+// 	message := fmt.Sprintf("User purchased %d bTokens for basket %d using %s", bTokenAmount, req.BasketData.BasketReferenceId, req.Stablecoin)
+// 	// Log to HCS
+// 	_, err := bh.hederaService.SubmitMessage(ctx, bh.topicID, []byte(models.Purchase), req.BasketID,
+// 		c.RealIP(), fmt.Sprintf("Purchased %d bTokens", bTokenAmount))
+// 	if err != nil {
+// 		log.Printf("Warning: failed to log to HCS: %v", err)
+// 	}
 
-	c.JSON(200, gin.H{
-		"basket_id":           req.BasketID,
-		"btoken_burned":       req.BTokenAmount,
-		"stablecoin_returned": stablecoinReturned,
-		"timestamp":           time.Now().Unix(),
-	})
-}
+// 	return c.JSON(http.StatusCreated, map[string]interface{}{
+// 		"basket_id":         req.BasketID,
+// 		"stablecoin_amount": req.StablecoinAmount,
+// 		"btoken_minted":     bTokenAmount,
+// 		"timestamp":         time.Now().Unix(),
+// 	})
+// }
 
-// DepositFeederLiquidity handles feeder stablecoin deposits
-func (bh *BasketHandler) DepositFeederLiquidity(c *gin.Context) {
-	var req FeederVaultRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
-		return
-	}
+// // RedeemBasket handles basket redemption
+// func (bh *BasketHandler) RedeemBasket(c echo.Context) error {
+// 	var req models.RedeemBasketRequest
+// 	if err := c.Bind(&req); err != nil {
+// 		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+// 			"error": err.Error(),
+// 		})
+// 	}
 
-	ctx := c.Request.Context()
+// 	ctx := c.Request().Context()
 
-	vault, err := bh.vaultService.DepositStablecoin(ctx, req.FeederDID, req.StablecoinAmount)
-	if err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
-		return
-	}
+// 	// In production: call smart contract burn
+// 	stablecoinReturned := req.BTokenAmount * 99 / 100
 
-	// Log to HCS
-	_, err = bh.hederaService.LogToHCS(ctx, bh.topicID, "FEEDER_DEPOSIT", 0, req.FeederDID, fmt.Sprintf("Deposited %d stablecoins", req.StablecoinAmount))
-	if err != nil {
-		log.Printf("Warning: failed to log to HCS: %v", err)
-	}
+// 	// Log to HCS
+// 	_, err := bh.hederaService.LogToHCS(ctx, bh.topicID, "BASKET_REDEMPTION", req.BasketID,
+// 		c.RealIP(), fmt.Sprintf("Redeemed %d bTokens", req.BTokenAmount))
+// 	if err != nil {
+// 		log.Printf("Warning: failed to log to HCS: %v", err)
+// 	}
 
-	c.JSON(201, gin.H{
-		"feeder_did":     vault.FeederDID,
-		"balance":        vault.StablecoinBalance,
-		"deposit_amount": req.StablecoinAmount,
-		"timestamp":      time.Now().Unix(),
-	})
-}
-
-// WithdrawFeederLiquidity handles feeder withdrawals
-func (bh *BasketHandler) WithdrawFeederLiquidity(c *gin.Context) {
-	feederDID := c.Query("feeder_did")
-	withdrawAmount, _ := strconv.ParseUint(c.Query("amount"), 10, 64)
-
-	ctx := c.Request.Context()
-
-	vault, err := bh.vaultService.WithdrawStablecoin(ctx, feederDID, withdrawAmount)
-	if err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Log to HCS
-	_, err = bh.hederaService.LogToHCS(ctx, bh.topicID, "FEEDER_WITHDRAWAL", 0, feederDID, fmt.Sprintf("Withdrew %d stablecoins", withdrawAmount))
-	if err != nil {
-		log.Printf("Warning: failed to log to HCS: %v", err)
-	}
-
-	c.JSON(200, gin.H{
-		"feeder_did":        vault.FeederDID,
-		"balance":           vault.StablecoinBalance,
-		"withdrawal_amount": withdrawAmount,
-		"timestamp":         time.Now().Unix(),
-	})
-}
-
-// GetFeederVault retrieves feeder vault info
-func (bh *BasketHandler) GetFeederVault(c *gin.Context) {
-	feederDID := c.Query("feeder_did")
-
-	vault, err := bh.vaultService.GetVault(feederDID)
-	if err != nil {
-		c.JSON(404, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(200, vault)
-}
+// 	return c.JSON(http.StatusOK, map[string]interface{}{
+// 		"basket_id":           req.BasketID,
+// 		"btoken_burned":       req.BTokenAmount,
+// 		"stablecoin_returned": stablecoinReturned,
+// 		"timestamp":           time.Now().Unix(),
+// 	})
+// }

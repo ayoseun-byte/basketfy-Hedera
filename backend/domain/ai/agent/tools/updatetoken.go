@@ -43,7 +43,7 @@ func UpdateTokenWeightTool() map[string]BasaiTool {
 					ruList []RebalanceUpdate
 				)
 
-				json.Unmarshal([]byte(input),&ruList)
+				json.Unmarshal([]byte(input), &ruList)
 				ruListJSON, _ := json.Marshal(ruList)
 				utilities.Printer("\n\nrebalanceupdateData: ", string(ruListJSON), "blue")
 				var wg sync.WaitGroup

@@ -8,13 +8,14 @@ import (
 	"basai/domain/ai/agent/tools"
 	"basai/infrastructure/database"
 	"context"
-	"github.com/labstack/echo/v4"
-	e_mid "github.com/labstack/echo/v4/middleware"
-	echoSwagger "github.com/swaggo/echo-swagger"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"time"
+
+	"github.com/labstack/echo/v4"
+	e_mid "github.com/labstack/echo/v4/middleware"
+	echoSwagger "github.com/swaggo/echo-swagger"
 )
 
 func Start() *echo.Echo {
@@ -34,16 +35,16 @@ func Start() *echo.Echo {
 	e.Use(e_mid.Recover())
 
 	// Root route => handler
-	e.GET("/", func(c echo.Context) error {
-		var resp = map[string]interface{}{
-			"ApplicationName":     "Basketfy AI Backend Server",
-			"ApplicationOwner":    "",
-			"ApplicationVersion":  "1.0",
-			"ApplicationEngineer": "Sam Ayo",
-			"ApplicationStatus":   "running...",
-		}
-		return c.JSON(http.StatusOK, resp)
-	})
+	// e.GET("/", func(c echo.Context) error {
+	// 	var resp = map[string]interface{}{
+	// 		"ApplicationName":     "Basketfy AI Backend Server",
+	// 		"ApplicationOwner":    "",
+	// 		"ApplicationVersion":  "1.0",
+	// 		"ApplicationEngineer": "Sam Ayo",
+	// 		"ApplicationStatus":   "running...",
+	// 	}
+	// 	return c.JSON(http.StatusOK, resp)
+	// })
 	e.GET("/health", func(c echo.Context) error {
 		return c.String(http.StatusOK, "healthy")
 	})
@@ -53,6 +54,12 @@ func Start() *echo.Echo {
 	api := e.Group("api/v1")
 
 	// api.Use(middleware.APIKeyMiddleware())
+	baskethandler, err := handlers.NewBasketHandler()
+	if err != nil {
+
+	}
+	e.GET("/", baskethandler.DeployBasketFactory)
+	//baskethandler.DeployBasketFactory(e.NewContext(nil, nil))
 	PortfolioRoutes(api)
 
 	AuthRoutes(api)
