@@ -6,8 +6,8 @@ pragma solidity ^0.8.20;
 
 import "./interfaces/IERC20.sol";
 
-contract FeederVault {
-    address public factory;
+contract FeedersVault {
+
     
     struct Feeder {
         string did; // Decentralized Identity
@@ -28,8 +28,8 @@ contract FeederVault {
     event LiquidityWithdrawn(address indexed feeder, uint256 amount);
     event YieldClaimed(address indexed feeder, uint256 yieldAmount);
     
-    constructor(address _factory) {
-        factory = _factory;
+    constructor() {
+      
         yieldRate = 500; // 5% default APY
     }
     

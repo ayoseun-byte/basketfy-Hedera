@@ -10,6 +10,8 @@ import "./BasketCore.sol";
 
 contract BasketFactory {
     address public admin;
+
+    string public constant VERSION = "1.0.0";
     
     uint256 public basketCounter;
     uint256 public protocolFeePercentage = 25; // 0.25%
@@ -81,58 +83,70 @@ contract BasketFactory {
 
     // ============ BASKET CREATION ============
 
-    function createBasket(
-        string memory _name,
-        string memory _theme,
-        address[] memory _tokens,
-        uint256[] memory _weights,
-        uint256 _rebalanceFrequency,
-        uint256 _feePercentage,
-        address _basketAddress,
-        address _bTokenAddress,
-        address _nftAddress,
-        address _curator
-    ) external onlyAdmin returns (uint256 basketId) {
-        require(_tokens.length == _weights.length, "Tokens/weights mismatch");
-        require(_basketAddress != address(0), "Invalid basket address");
-        require(_bTokenAddress != address(0), "Invalid bToken address");
-        require(_nftAddress != address(0), "Invalid NFT address");
-        require(_curator != address(0), "Invalid curator");
+ function createBasket(
+    string memory _name,
+    string memory _theme,
+    address[] memory _tokens,
+    uint256[] memory _weights,
+    uint256 _rebalanceFrequency,
+    uint256 _feePercentage,
+    address _bTokenAddress,
+    address _nftAddress,
+    address _curator
+) external onlyAdmin returns (uint256 basketId, address basketAddress) {
+    require(_tokens.length == _weights.length, "Tokens/weights mismatch");
+    require(_bTokenAddress != address(0), "Invalid bToken address");
+    require(_nftAddress != address(0), "Invalid NFT address");
+    require(_curator != address(0), "Invalid curator");
 
-        uint256 totalWeight = 0;
-        for (uint256 i = 0; i < _weights.length; i++) {
-            totalWeight += _weights[i];
-        }
-        require(totalWeight == 10000, "Weights must sum to 10000");
-
-        basketId = basketCounter++;
-
-        baskets[basketId] = BasketConfig({
-            name: _name,
-            theme: _theme,
-            basketAddress: _basketAddress,
-            bTokenAddress: _bTokenAddress,
-            nftAddress: _nftAddress,
-            underlyingTokens: _tokens,
-            defaultWeights: _weights,
-            rebalanceFrequency: _rebalanceFrequency,
-            feePercentage: _feePercentage,
-            curator: _curator,
-            active: true
-        });
-
-        emit BasketCreated(
-            basketId,
-            _name,
-            _basketAddress,
-            _bTokenAddress,
-            _nftAddress,
-            _curator,
-            block.timestamp
-        );
-
-        return basketId;
+    uint256 totalWeight = 0;
+    for (uint256 i = 0; i < _weights.length; i++) {
+        totalWeight += _weights[i];
     }
+    require(totalWeight == 10000, "Weights must sum to 10000");
+
+    // Deploy BasketCore directly
+    BasketCore basketCore = new BasketCore(
+        address(this),          // factory
+        _curator,               // curator
+        _name,                  // basket name
+        _theme,                 // basket theme
+        _bTokenAddress,         // bToken
+        _nftAddress,            // NFT
+        _tokens,                // underlying tokens
+        _weights,               // default weights
+        _rebalanceFrequency,    // rebalance frequency
+        _feePercentage          // protocol fee percentage
+    );
+
+    basketAddress = address(basketCore);
+
+    basketId = basketCounter++;
+    baskets[basketId] = BasketConfig({
+        name: _name,
+        theme: _theme,
+        basketAddress: basketAddress,
+        bTokenAddress: _bTokenAddress,
+        nftAddress: _nftAddress,
+        underlyingTokens: _tokens,
+        defaultWeights: _weights,
+        rebalanceFrequency: _rebalanceFrequency,
+        feePercentage: _feePercentage,
+        curator: _curator,
+        active: true
+    });
+
+    emit BasketCreated(
+        basketId,
+        _name,
+        basketAddress,
+        _bTokenAddress,
+        _nftAddress,
+        _curator,
+        block.timestamp
+    );
+}
+
 
     // ============ BASKET OPERATIONS ============
 
