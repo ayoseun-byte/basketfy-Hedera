@@ -67,6 +67,20 @@ createAppKit({
   ...generalConfig,
 })
 
+const ErrorFallback = ({ error, resetErrorBoundary }) => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+    <div className="text-center max-w-md">
+      <h2 className="text-2xl font-bold text-gray-900 mb-4">Something went wrong</h2>
+      <p className="text-gray-600 mb-6">{error.message}</p>
+      <button
+        onClick={resetErrorBoundary}
+        className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors"
+      >
+        Try again
+      </button>
+    </div>
+  </div>
+);
 
 
 const App = () => {
@@ -102,7 +116,7 @@ const App = () => {
 
         <Router> {/* Wrap your entire app with Router */}
           <>
-
+           <main className="min-h-screen">
             <Routes> {/* Define your routes here */}
               <Route path="/" element={
                 <LandingPage
@@ -236,6 +250,7 @@ const App = () => {
               darkMode={isDarkMode}
               setShowWalletModal={setShowWalletModal}
             />
+            </main>
           </>
         </Router>
       </QueryClientProvider>

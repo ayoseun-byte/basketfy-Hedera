@@ -11,19 +11,20 @@ import {
   Zap,
   Clock,
   TrendingUp,
-  Coins
+  Coins,
+  Menu,
+  X
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAppKitAccount,useAppKit } from '@reown/appkit/react';
+import { useAppKitAccount, useAppKit } from '@reown/appkit/react';
 import { Contract, BrowserProvider, parseUnits, formatUnits } from 'ethers';
 import { useAppKitProvider } from "@reown/appkit/react";
 import { MOCK_USDC_ADDRESS } from '../constants/config';
 
 // Mock USDC Contract Configuration
-
 const MINT_AMOUNT = "5000"; // 5000 USDC
 
-// Mock USDC ABI (add the mint function from your contract)
+// Mock USDC ABI
 const MOCK_USDC_ABI = [
   "function mint(address to, uint256 amount) external",
   "function balanceOf(address account) external view returns (uint256)",
@@ -34,7 +35,7 @@ const MOCK_USDC_ABI = [
 
 const Faucet = ({ darkMode, setDarkMode }) => {
   const navigate = useNavigate();
-  const  { open, close } = useAppKit();
+  const { open } = useAppKit();
   const { walletProvider } = useAppKitProvider("eip155");
   const { address, isConnected } = useAppKitAccount();
 
@@ -45,6 +46,7 @@ const Faucet = ({ darkMode, setDarkMode }) => {
   const [balance, setBalance] = useState("0");
   const [copied, setCopied] = useState(false);
   const [tokenInfo, setTokenInfo] = useState({ name: "", symbol: "" });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Fetch user's USDC balance
   const fetchBalance = async () => {
@@ -128,22 +130,33 @@ const Faucet = ({ darkMode, setDarkMode }) => {
     <div className={`min-h-screen ${darkMode ? 'bg-gradient-to-br from-gray-900 via-purple-900 to-black' : 'bg-gradient-to-br from-white via-purple-50 to-gray-100'} ${darkMode ? 'text-white' : 'text-gray-900'} transition-colors duration-300`}>
       
       {/* Header */}
-      <header className="flex justify-between items-center p-6">
+      <header className="flex justify-between items-center p-4 sm:p-6">
         <div 
           onClick={() => navigate('/')}
-          className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent cursor-pointer hover:opacity-80 transition-opacity"
+          className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent cursor-pointer hover:opacity-80 transition-opacity"
         >
           Basketfy
         </div>
-        <div className="flex items-center gap-4">
+        
+        {/* Mobile Menu Button */}
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="sm:hidden p-2 rounded-lg transition-colors"
+        >
+          {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+
+        {/* Desktop Actions */}
+        <div className="hidden sm:flex items-center gap-3 lg:gap-4">
           <button
             onClick={() => setDarkMode(!darkMode)}
             className={`p-2 rounded-lg ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'} transition-colors`}
+            aria-label="Toggle theme"
           >
             {darkMode ? '☀️' : '🌙'}
           </button>
           {isConnected && (
-            <div className={`px-4 py-2 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className={`px-3 py-2 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
                 <span className="text-sm font-mono">
@@ -153,98 +166,124 @@ const Faucet = ({ darkMode, setDarkMode }) => {
             </div>
           )}
         </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="absolute top-16 right-4 sm:hidden bg-gray-800 border border-gray-700 rounded-lg p-4 shadow-xl z-50">
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className="p-2 rounded-lg bg-gray-700 text-left"
+              >
+                {darkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
+              </button>
+              {isConnected && (
+                <div className="px-3 py-2 rounded-lg bg-gray-700 border border-gray-600">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                    <span className="text-sm font-mono">
+                      {address?.slice(0, 6)}...{address?.slice(-4)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-6 py-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         
         {/* Hero Section */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-purple-500/20 border border-purple-500/30 backdrop-blur-md mb-6">
-            <Droplet className="w-5 h-5 text-purple-400 animate-pulse" />
-            <span className="text-sm font-semibold">Test Token Faucet</span>
+        <div className="text-center mb-8 sm:mb-12">
+          <div className="inline-flex items-center gap-2 sm:gap-3 px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-purple-500/20 border border-purple-500/30 backdrop-blur-md mb-4 sm:mb-6">
+            <Droplet className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 animate-pulse" />
+            <span className="text-xs sm:text-sm font-semibold">Test Token Faucet</span>
           </div>
           
-          <h1 className="text-5xl md:text-6xl font-black mb-4">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black mb-4 sm:mb-6">
             <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
               Get Free Test USDC
             </span>
           </h1>
           
-          <p className={`text-lg ${darkMode ? 'text-gray-300' : 'text-gray-600'} max-w-2xl mx-auto`}>
+          <p className={`text-base sm:text-lg ${darkMode ? 'text-gray-300' : 'text-gray-600'} max-w-2xl mx-auto px-4`}>
             Mint 5,000 Mock USDC tokens for testing on the Hedera testnet. Perfect for exploring Basketfy features without using real funds.
           </p>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className={`${darkMode ? 'bg-gray-800/50' : 'bg-white/70'} backdrop-blur-sm p-6 rounded-2xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-            <div className="flex items-center gap-3 mb-2">
-              <DollarSign className="w-5 h-5 text-green-400" />
-              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Mint Amount</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
+          <div className={`${darkMode ? 'bg-gray-800/50' : 'bg-white/70'} backdrop-blur-sm p-4 sm:p-6 rounded-xl sm:rounded-2xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className="flex items-center gap-2 sm:gap-3 mb-2">
+              <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
+              <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Mint Amount</span>
             </div>
-            <p className="text-3xl font-bold">5,000 USDC</p>
+            <p className="text-2xl sm:text-3xl font-bold">5,000 USDC</p>
           </div>
           
-          <div className={`${darkMode ? 'bg-gray-800/50' : 'bg-white/70'} backdrop-blur-sm p-6 rounded-2xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-            <div className="flex items-center gap-3 mb-2">
-              <Wallet className="w-5 h-5 text-purple-400" />
-              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Your Balance</span>
+          <div className={`${darkMode ? 'bg-gray-800/50' : 'bg-white/70'} backdrop-blur-sm p-4 sm:p-6 rounded-xl sm:rounded-2xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className="flex items-center gap-2 sm:gap-3 mb-2">
+              <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
+              <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Your Balance</span>
             </div>
-            <p className="text-3xl font-bold">{parseFloat(balance).toLocaleString()} USDC</p>
+            <p className="text-2xl sm:text-3xl font-bold">{parseFloat(balance).toLocaleString()} USDC</p>
           </div>
           
-          <div className={`${darkMode ? 'bg-gray-800/50' : 'bg-white/70'} backdrop-blur-sm p-6 rounded-2xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-            <div className="flex items-center gap-3 mb-2">
-              <Zap className="w-5 h-5 text-yellow-400" />
-              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Network</span>
+          <div className={`${darkMode ? 'bg-gray-800/50' : 'bg-white/70'} backdrop-blur-sm p-4 sm:p-6 rounded-xl sm:rounded-2xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'} sm:col-span-2 lg:col-span-1`}>
+            <div className="flex items-center gap-2 sm:gap-3 mb-2">
+              <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" />
+              <span className={`text-xs sm:text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Network</span>
             </div>
-            <p className="text-2xl font-bold">Hedera Testnet</p>
+            <p className="text-xl sm:text-2xl font-bold">Hedera Testnet</p>
           </div>
         </div>
 
         {/* Main Faucet Card */}
-        <div className={`${darkMode ? 'bg-gray-800/50' : 'bg-white/70'} backdrop-blur-sm rounded-3xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'} p-8 md:p-12 shadow-2xl`}>
+        <div className={`${darkMode ? 'bg-gray-800/50' : 'bg-white/70'} backdrop-blur-sm rounded-2xl sm:rounded-3xl border ${darkMode ? 'border-gray-700' : 'border-gray-200'} p-4 sm:p-6 md:p-8 lg:p-12 shadow-xl`}>
           
           {/* Contract Info */}
-          <div className={`${darkMode ? 'bg-gray-900/50' : 'bg-gray-50'} rounded-xl p-4 mb-8`}>
-            <div className="flex items-center justify-between mb-2">
-              <span className={`text-sm font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          <div className={`${darkMode ? 'bg-gray-900/50' : 'bg-gray-50'} rounded-lg sm:rounded-xl p-3 sm:p-4 mb-6`}>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-2">
+              <span className={`text-xs sm:text-sm font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                 Token Contract
               </span>
               <button
                 onClick={copyAddress}
-                className={`flex items-center gap-2 px-3 py-1 rounded-lg ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100'} transition-colors`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-100'} transition-colors w-fit sm:w-auto`}
               >
                 {copied ? (
                   <>
-                    <CheckCircle className="w-4 h-4 text-green-400" />
-                    <span className="text-xs text-green-400">Copied!</span>
+                    <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-green-400" />
+                    <span className="text-green-400">Copied!</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-4 h-4" />
-                    <span className="text-xs">Copy</span>
+                    <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span>Copy</span>
                   </>
                 )}
               </button>
             </div>
-            <p className="font-mono text-sm break-all">{MOCK_USDC_ADDRESS}</p>
+            <p className="font-mono text-xs sm:text-sm break-all leading-5 sm:leading-6">
+              {MOCK_USDC_ADDRESS}
+            </p>
           </div>
 
           {/* Connection Status */}
           {!isConnected ? (
-            <div className="text-center py-12">
-              <Wallet className="w-16 h-16 mx-auto mb-4 text-purple-400" />
-              <h3 className="text-2xl font-bold mb-3">Connect Your Wallet</h3>
-              <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-6`}>
+            <div className="text-center py-8 sm:py-12">
+              <Wallet className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 text-purple-400" />
+              <h3 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-3">Connect Your Wallet</h3>
+              <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} mb-4 sm:mb-6 text-sm sm:text-base`}>
                 Please connect your wallet to mint test USDC tokens
               </p>
               <button
                 onClick={() => open({ view: 'Connect' })}
-                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 transform hover:scale-105"
+                className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 sm:py-4 px-6 sm:px-8 rounded-xl transition-all duration-300 transform hover:scale-105 text-base sm:text-lg"
               >
-                Connect
+                Connect Wallet
               </button>
             </div>
           ) : (
@@ -253,16 +292,16 @@ const Faucet = ({ darkMode, setDarkMode }) => {
               <button
                 onClick={handleMint}
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold py-6 px-8 rounded-xl transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100 shadow-xl flex items-center justify-center gap-3 text-lg mb-6"
+                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-bold py-4 sm:py-6 px-6 sm:px-8 rounded-xl transition-all duration-300 transform hover:scale-105 disabled:hover:scale-100 shadow-xl flex items-center justify-center gap-2 sm:gap-3 text-base sm:text-lg mb-4 sm:mb-6 min-h-[60px]"
               >
                 {loading ? (
                   <>
-                    <Loader className="w-6 h-6 animate-spin" />
+                    <Loader className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
                     <span>Minting Tokens...</span>
                   </>
                 ) : (
                   <>
-                    <Coins className="w-6 h-6" />
+                    <Coins className="w-5 h-5 sm:w-6 sm:h-6" />
                     <span>Mint 5,000 USDC</span>
                   </>
                 )}
@@ -270,12 +309,12 @@ const Faucet = ({ darkMode, setDarkMode }) => {
 
               {/* Success Message */}
               {success && (
-                <div className="bg-green-500/20 border border-green-500/30 rounded-xl p-4 mb-6 animate-pulse">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" />
+                <div className="bg-green-500/20 border border-green-500/30 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6 animate-pulse">
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-400 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="font-semibold text-green-400 mb-1">Success! Tokens Minted</p>
-                      <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                      <p className="font-semibold text-green-400 mb-1 text-sm sm:text-base">Success! Tokens Minted</p>
+                      <p className={`text-xs sm:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                         5,000 USDC has been added to your wallet
                       </p>
                       {txHash && (
@@ -283,10 +322,10 @@ const Faucet = ({ darkMode, setDarkMode }) => {
                           href={`https://hashscan.io/testnet/transaction/${txHash}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-sm text-purple-400 hover:text-purple-300 mt-2 transition-colors"
+                          className="flex items-center gap-2 text-xs sm:text-sm text-purple-400 hover:text-purple-300 mt-2 transition-colors"
                         >
                           <span>View Transaction</span>
-                          <ExternalLink className="w-4 h-4" />
+                          <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4" />
                         </a>
                       )}
                     </div>
@@ -296,12 +335,12 @@ const Faucet = ({ darkMode, setDarkMode }) => {
 
               {/* Error Message */}
               {error && (
-                <div className="bg-red-500/20 border border-red-500/30 rounded-xl p-4 mb-6">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
+                <div className="bg-red-500/20 border border-red-500/30 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-400 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="font-semibold text-red-400 mb-1">Error</p>
-                      <p className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                      <p className="font-semibold text-red-400 mb-1 text-sm sm:text-base">Error</p>
+                      <p className={`text-xs sm:text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                         {error}
                       </p>
                     </div>
@@ -310,12 +349,12 @@ const Faucet = ({ darkMode, setDarkMode }) => {
               )}
 
               {/* Info Section */}
-              <div className={`${darkMode ? 'bg-blue-500/10' : 'bg-blue-50'} border ${darkMode ? 'border-blue-500/20' : 'border-blue-200'} rounded-xl p-6`}>
-                <h4 className="font-semibold mb-3 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-blue-400" />
+              <div className={`${darkMode ? 'bg-blue-500/10' : 'bg-blue-50'} border ${darkMode ? 'border-blue-500/20' : 'border-blue-200'} rounded-xl p-4 sm:p-6`}>
+                <h4 className="font-semibold mb-2 sm:mb-3 flex items-center gap-2 text-sm sm:text-base">
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
                   What's Next?
                 </h4>
-                <ul className={`space-y-2 ${darkMode ? 'text-gray-300' : 'text-gray-600'} text-sm`}>
+                <ul className={`space-y-1 sm:space-y-2 ${darkMode ? 'text-gray-300' : 'text-gray-600'} text-xs sm:text-sm`}>
                   <li className="flex items-start gap-2">
                     <span className="text-purple-400 font-bold mt-0.5">1.</span>
                     <span>Use these tokens to test depositing liquidity in the FeedersVault</span>
@@ -335,29 +374,29 @@ const Faucet = ({ darkMode, setDarkMode }) => {
         </div>
 
         {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center mt-12">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mt-8 sm:mt-12">
           <button
             onClick={() => navigate('/feeder')}
-            className={`${darkMode ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-white hover:bg-gray-50 text-gray-900'} font-semibold py-4 px-8 rounded-xl transition-all duration-300 border ${darkMode ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-center gap-2`}
+            className={`${darkMode ? 'bg-gray-800 hover:bg-gray-700 text-white' : 'bg-white hover:bg-gray-50 text-gray-900'} font-semibold py-3 sm:py-4 px-6 sm:px-8 rounded-xl transition-all duration-300 border ${darkMode ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-center gap-2 text-sm sm:text-base`}
           >
-            <TrendingUp className="w-5 h-5" />
+            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>Become a Feeder</span>
           </button>
           
           <button
             onClick={() => navigate('/baskets')}
-            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2"
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-3 sm:py-4 px-6 sm:px-8 rounded-xl transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2 text-sm sm:text-base"
           >
             <span>Explore Baskets</span>
-            <ExternalLink className="w-5 h-5" />
+            <ExternalLink className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
       </div>
 
       {/* Footer */}
-      <footer className={`${darkMode ? 'bg-gray-900/50' : 'bg-gray-50/50'} backdrop-blur-sm border-t ${darkMode ? 'border-gray-800' : 'border-gray-200'} px-6 py-8 mt-20`}>
+      <footer className={`${darkMode ? 'bg-gray-900/50' : 'bg-gray-50/50'} backdrop-blur-sm border-t ${darkMode ? 'border-gray-800' : 'border-gray-200'} px-4 sm:px-6 py-6 sm:py-8 mt-12 sm:mt-20`}>
         <div className="max-w-4xl mx-auto text-center">
-          <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} text-sm`}>
+          <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} text-xs sm:text-sm`}>
             © {new Date().getFullYear()} Basketfy. Test tokens have no real value.
           </p>
         </div>

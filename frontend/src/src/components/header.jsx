@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, Wallet, ChevronDown, Copy, ExternalLink, Bell, Menu, X } from 'lucide-react';
-
 import { useNavigate } from 'react-router-dom';
 import { toggleDarkMode, selectCuratorData, selectUserData, selectFeederData } from '../store/store';
 import { useSelector, useDispatch } from 'react-redux';
@@ -47,6 +46,7 @@ const Header = ({
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
+    // Optional: Add toast notification here
   };
 
   // Determine which section to show
@@ -55,7 +55,9 @@ const Header = ({
   const showUserSection = !showCuratorSection && !showFeederSection;
 
   return (
-    <header className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg sticky top-0 z-40`}>
+    <header className={`${isDarkMode ? 'bg-gray-900' : 'bg-white'} shadow-lg sticky top-0 z-40 border-b ${
+      isDarkMode ? 'border-gray-800' : 'border-gray-100'
+    }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
         {/* Mobile Layout - Stacked */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
@@ -63,15 +65,15 @@ const Header = ({
           {/* Top Row - Logo/Basket Details + Mobile Menu */}
           <div className="flex items-center justify-between w-full sm:w-auto">
             {/* Left - Back Button or Basket Details */}
-            <div className="flex items-center gap-3 sm:gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
               {basketDetails ? (
-                <div className="flex items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                   <img
                     src={basketDetails.image || 'https://i.ibb.co/7J52Ldr7/basket-svgrepo-com.png'}
                     alt={basketDetails.name}
-                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover"
+                    className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0"
                   />
-                  <div className="max-w-[150px] sm:max-w-none">
+                  <div className="min-w-0 flex-1">
                     <h1 className="text-lg sm:text-xl font-bold truncate">{basketDetails.name}</h1>
                     <p className={`text-xs sm:text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} truncate`}>
                       by {basketDetails.creator}
@@ -81,10 +83,12 @@ const Header = ({
               ) : (
                 <button
                   onClick={() => navigate(route || '/')}
-                  className="flex items-center gap-1 sm:gap-2 hover:text-purple-400 transition-colors text-sm sm:text-base"
+                  className={`flex items-center gap-1 sm:gap-2 hover:text-purple-400 transition-colors text-sm sm:text-base p-1 rounded-lg ${
+                    isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
+                  }`}
                 >
-                  <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="hidden xs:inline">{routeText}</span>
+                  <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                  <span className="hidden xs:inline truncate">{routeText}</span>
                 </button>
               )}
             </div>
@@ -92,7 +96,10 @@ const Header = ({
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="sm:hidden p-2 rounded-lg"
+              className={`sm:hidden p-2 rounded-lg ${
+                isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-gray-100'
+              } transition-colors flex-shrink-0 ml-2`}
+              aria-label="Toggle menu"
             >
               {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -100,31 +107,19 @@ const Header = ({
 
           {/* Center Title - Responsive positioning */}
           {!basketDetails && (
-            <h1 className="text-xl sm:text-2xl font-bold text-center sm:absolute sm:left-1/2 sm:transform sm:-translate-x-1/2 order-first sm:order-none">
+            <h1 className="text-xl sm:text-2xl font-bold text-center sm:absolute sm:left-1/2 sm:transform sm:-translate-x-1/2 order-first sm:order-none px-4 sm:px-0 truncate max-w-[200px] sm:max-w-none">
               {title}
             </h1>
           )}
 
           {/* Desktop Action Buttons */}
-          <div className="hidden sm:flex items-center gap-3 lg:gap-4">
-            {/* Action Buttons */}
-            <div className="flex items-center gap-2 lg:gap-3">
-              <button
-                onClick={() => dispatch(toggleDarkMode())}
-                className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
-              >
-                {isDarkMode ? '☀️' : '🌙'}
-              </button>
-
-              <button className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}>
-                <Bell className="w-4 h-4 lg:w-5 lg:h-5" />
-              </button>
-
-              <button className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}>
-                <img src="../src/assets/farmer.svg" alt="farmer" className="w-4 h-4" />
-              </button>
-            </div>
-
+          <div className="hidden sm:flex items-center gap-3 lg:gap-4 flex-shrink-0">
+            <ActionButtons 
+              isDarkMode={isDarkMode} 
+              dispatch={dispatch}
+              isMobile={false}
+            />
+            
             {/* Divider */}
             <div className={`w-px h-6 lg:h-8 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
 
@@ -144,6 +139,7 @@ const Header = ({
               isDarkMode={isDarkMode}
               dropdownRef={dropdownRef}
               copyToClipboard={copyToClipboard}
+              isMobile={false}
             />
           </div>
 
@@ -153,26 +149,15 @@ const Header = ({
               ref={mobileMenuRef}
               className={`sm:hidden mt-3 pt-3 border-t ${
                 isDarkMode ? 'border-gray-700' : 'border-gray-200'
-              }`}
+              } w-full`}
             >
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-4">
                 {/* Mobile Action Buttons */}
-                <div className="flex justify-between">
-                  <button
-                    onClick={() => dispatch(toggleDarkMode())}
-                    className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} transition-colors`}
-                  >
-                    {isDarkMode ? '☀️ Light' : '🌙 Dark'}
-                  </button>
-                  
-                  <button className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} transition-colors`}>
-                    <Bell className="w-5 h-5" />
-                  </button>
-                  
-                  <button className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} transition-colors`}>
-                    <img src="../src/assets/farmer.svg" alt="farmer" className="w-5 h-5" />
-                  </button>
-                </div>
+                <ActionButtons 
+                  isDarkMode={isDarkMode} 
+                  dispatch={dispatch}
+                  isMobile={true}
+                />
 
                 {/* Mobile Wallet Section */}
                 <WalletConnectionSection 
@@ -201,6 +186,37 @@ const Header = ({
   );
 };
 
+// Extracted Action Buttons Component
+const ActionButtons = ({ isDarkMode, dispatch, isMobile }) => (
+  <div className={`flex items-center gap-2 ${isMobile ? 'justify-between' : ''}`}>
+    <button
+      onClick={() => dispatch(toggleDarkMode())}
+      className={`p-3 rounded-lg ${
+        isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
+      } transition-colors flex items-center gap-2 ${isMobile ? 'flex-1 justify-center' : ''}`}
+      aria-label="Toggle theme"
+    >
+      <span className="text-sm">{isDarkMode ? '☀️' : '🌙'}</span>
+      {isMobile && <span className="text-sm">{isDarkMode ? 'Light' : 'Dark'}</span>}
+    </button>
+
+    <button className={`p-3 rounded-lg ${
+      isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
+    } transition-colors flex items-center gap-2 ${isMobile ? 'flex-1 justify-center' : ''}`}>
+      <Bell className="w-4 h-4 lg:w-5 lg:h-5" />
+      {isMobile && <span className="text-sm">Notifications</span>}
+    </button>
+
+    <button className={`p-3 rounded-lg ${
+      isDarkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-100 hover:bg-gray-200'
+    } transition-colors flex items-center gap-2 ${isMobile ? 'flex-1 justify-center' : ''}`}>
+      {/* Use a proper icon or SVG */}
+      <div className="w-4 h-4 lg:w-5 lg:h-5 bg-gradient-to-r from-purple-400 to-pink-400 rounded"></div>
+      {isMobile && <span className="text-sm">Farm</span>}
+    </button>
+  </div>
+);
+
 // Extracted Wallet Connection Component for reusability
 const WalletConnectionSection = ({
   showCuratorSection,
@@ -223,15 +239,15 @@ const WalletConnectionSection = ({
     <div className={isMobile ? "w-full" : ""}>
       {/* CURATOR SECTION */}
       {showCuratorSection && (
-        <div className={`flex items-center gap-3 ${isMobile ? 'justify-center py-2' : ''}`}>
+        <div className={`flex items-center gap-3 ${isMobile ? 'justify-center py-2 border-b border-gray-200 dark:border-gray-700 pb-4' : ''}`}>
           <img
             src={curatorData?.profile?.avatar || 'https://via.placeholder.com/40'}
             alt="Curator Profile"
-            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover"
+            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover flex-shrink-0"
           />
-          <div className={isMobile ? "text-center" : "hidden sm:block"}>
-            <h1 className="text-sm font-bold">{curatorData?.profile?.name || 'Curator'}</h1>
-            <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          <div className={isMobile ? "text-center min-w-0 flex-1" : "hidden sm:block min-w-0"}>
+            <h1 className="text-sm font-bold truncate">{curatorData?.profile?.name || 'Curator'}</h1>
+            <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'} truncate`}>
               Curator
             </p>
           </div>
@@ -240,23 +256,25 @@ const WalletConnectionSection = ({
 
       {/* USER/FEEDER WALLET SECTION */}
       {(showUserSection || showFeederSection) && (
-        <div className={`relative ${isMobile ? 'w-full' : ''}`} ref={dropdownRef}>
+        <div className={`relative ${isMobile ? 'w-full mt-4' : ''}`} ref={dropdownRef}>
           <button
             onClick={() => walletConnected ? setIsDropdownOpen(!isDropdownOpen) : 
               (showUserSection ? navigate('/login') : setShowWalletModal(true))}
-            className={`flex items-center justify-center gap-2 px-3 py-2 text-xs rounded-lg w-full sm:w-auto ${
+            className={`flex items-center justify-center gap-2 px-4 py-3 text-sm rounded-lg w-full ${
               walletConnected
                 ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
                 : 'bg-purple-600 hover:bg-purple-700'
-            } text-white transition-all`}
+            } text-white transition-all min-h-[44px]`}
           >
-            <Wallet className="w-4 h-4" />
+            <Wallet className="w-4 h-4 flex-shrink-0" />
             {walletConnected ? (
               <>
-                <span className="truncate max-w-[80px] sm:max-w-[100px]">
+                <span className="truncate max-w-[120px] sm:max-w-[140px]">
                   {formattedAddress}
                 </span>
-                <ChevronDown className="w-3 h-3 flex-shrink-0" />
+                <ChevronDown className={`w-3 h-3 flex-shrink-0 transition-transform ${
+                  isDropdownOpen ? 'rotate-180' : ''
+                }`} />
               </>
             ) : (
               showUserSection ? 'Login' : 'Connect Wallet'
@@ -269,7 +287,7 @@ const WalletConnectionSection = ({
               isMobile ? 'left-0 right-0' : 'right-0'
             } mt-2 w-full sm:w-64 ${
               isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-            } border rounded-lg shadow-xl z-20`}>
+            } border rounded-lg shadow-xl z-50 max-h-96 overflow-y-auto`}>
               <div className="p-4">
                 <div className="flex items-center justify-between mb-3">
                   <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -277,24 +295,34 @@ const WalletConnectionSection = ({
                   </span>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => copyToClipboard(formattedAddress)}
-                      className={`p-1 rounded hover:${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} transition-colors`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copyToClipboard(formattedAddress);
+                      }}
+                      className={`p-2 rounded-lg ${
+                        isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                      } transition-colors`}
                       title="Copy address"
                     >
                       <Copy className="w-3 h-3" />
                     </button>
                     <button
-                      onClick={() => window.open(`https://solscan.io/address/${formattedAddress}`, '_blank')}
-                      className={`p-1 rounded hover:${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} transition-colors`}
-                      title="View on Solscan"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(`https://hashscan.io/testnet/address/${formattedAddress}`, '_blank');
+                      }}
+                      className={`p-2 rounded-lg ${
+                        isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                      } transition-colors`}
+                      title="View on Hashscan"
                     >
                       <ExternalLink className="w-3 h-3" />
                     </button>
                   </div>
                 </div>
 
-                <div className={`p-2 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} mb-4`}>
-                  <code className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} break-all`}>
+                <div className={`p-3 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} mb-4`}>
+                  <code className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} break-all font-mono`}>
                     {formattedAddress}
                   </code>
                 </div>
@@ -315,7 +343,7 @@ const WalletConnectionSection = ({
                       navigate('/curator-dashboard');
                       setIsDropdownOpen(false);
                     }}
-                    className="w-full px-3 py-2 text-left text-sm rounded-lg hover:bg-green-600 hover:text-white transition-colors"
+                    className="w-full px-3 py-2 text-left text-sm rounded-lg hover:bg-green-600 hover:text-white transition-colors text-green-400"
                   >
                     My Baskets
                   </button>
@@ -325,7 +353,7 @@ const WalletConnectionSection = ({
                       disconnectWallet();
                       setIsDropdownOpen(false);
                     }}
-                    className="w-full px-3 py-2 text-left text-sm rounded-lg hover:bg-red-600 hover:text-white transition-colors"
+                    className="w-full px-3 py-2 text-left text-sm rounded-lg hover:bg-red-600 hover:text-white transition-colors text-red-400"
                   >
                     {showUserSection ? 'Logout' : 'Disconnect'}
                   </button>
