@@ -3,8 +3,9 @@
 export const API_BASE_URL = import.meta.env.VITE_BASE_URL;
 export const SOCKET_URL = import.meta.env.VITE_SOCKET_URL;
 export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-export const VAULT_CONTRACT_ID = import.meta.env.VITE_VAULT_CONTRACT_ID || "0.0.7161962";
+export const VAULT_CONTRACT_ID = import.meta.env.VITE_VAULT_CONTRACT_ID ;
 export const VITE_PROJECT_ID = import.meta.env.VITE_PROJECT_ID
+export const MOCK_USDC_ADDRESS = import.meta.env.VITE_MOCK_USDC_ADDRESS
 
 
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'

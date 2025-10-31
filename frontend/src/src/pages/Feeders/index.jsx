@@ -7,18 +7,32 @@ import {
   useAppKitState,
   useAppKitEvents,
   useAppKitAccount,
-  useWalletInfo
+  useWalletInfo,
+  useAppKitProvider
 } from '@reown/appkit/react'
 
+
+
 import { useDisconnect, useAppKit, useAppKitNetwork } from '@reown/appkit/react'
- const { ethers, Contract } = await import('ethers');
+import { Contract, BrowserProvider, parseUnits, formatUnits } from 'ethers';
 
 import { useNavigate } from 'react-router-dom';
+import { useFeedersVault } from './contract';
+import { MOCK_USDC_ADDRESS } from '../../constants/config';
+
+
 
 const FeederDashboard = () => {
   const { open, close } = useAppKit();
   const { disconnect } = useDisconnect();
+  const {getYieldRate} = useFeedersVault();
   const { switchNetwork } = useAppKitNetwork();
+   const { walletProvider } = useAppKitProvider("eip155");
+  const events = useAppKitEvents()
+  const { walletInfo } = useWalletInfo()
+  const state = useAppKitState();
+  const { address, caipAddress, isConnected, status, embeddedWalletInfo, } = useAppKitAccount();
+
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
@@ -27,32 +41,22 @@ const FeederDashboard = () => {
   const navigate = useNavigate();
   // Get all state from Redux
   const isDarkMode = useSelector((state) => state.global.isDarkMode);
-  const state = useAppKitState();
-  const { address, caipAddress, isConnected, status, embeddedWalletInfo, } = useAppKitAccount();
-  const events = useAppKitEvents()
-  const { walletInfo } = useWalletInfo()
-  const [isOpen, setIsOpen] = useState(false);
-  const [dropdownRef2, setDropdownRef2] = useState(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef2 && !dropdownRef2.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [dropdownRef2]);
-
   const [amount, setAmount] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const dispatch = useDispatch();
+  const [isOpen, setIsOpen] = useState(false);
+  const [dropdownRef2, setDropdownRef2] = useState(null);
+  const dropdownRef = useRef(null);
+  const chains = [
+    { id: 'hedera', name: 'Ethereum', icon: '⟠', color: '#627EEA' }
+  ];
+
+
 
 
   const [tokens, setTokenBalances] = useState([
     { id: 'hbar', name: 'HBAR', balance: '0', logo: "", isNative: true },
-    { id: 'usdc', name: 'USDC', balance: '0', logo: "", contractAddress: '0x0000000000000000000000000000000000068cda', decimals: 6 },
+    { id: 'usdc', name: 'USDC', balance: '0', logo: "", contractAddress: MOCK_USDC_ADDRESS, decimals: 6 },
     { id: 'husd', name: 'HUSD', balance: '0', logo: '', contractAddress: '0x0000000000000000000000000000000000163b5a', decimals: 6 }
   ]);
 
@@ -66,11 +70,11 @@ const FeederDashboard = () => {
 
   // Function to fetch ERC-20 token balances
   const fetchEvmTokenBalances = async (walletAddress) => {
-    if (!walletAddress || !window.ethereum) return;
+    if (!walletAddress || !walletProvider) return;
 
     try {
-     
-      const provider = new ethers.BrowserProvider(window.ethereum);
+
+      const provider = new BrowserProvider(walletProvider);
 
       const updatedTokens = [...tokens];
 
@@ -84,7 +88,7 @@ const FeederDashboard = () => {
           const contract = new Contract(token.contractAddress, ERC20_ABI, provider);
           const rawBalance = await contract.balanceOf(walletAddress);
           const decimals = token.decimals || await contract.decimals();
-          const formatted = ethers.formatUnits(rawBalance, decimals);
+          const formatted = formatUnits(rawBalance, decimals);
           updatedTokens[i].balance = parseFloat(formatted).toFixed(2);
         } catch (err) {
           console.warn(`Error fetching ${token.name} balance:`, err);
@@ -140,31 +144,6 @@ const FeederDashboard = () => {
   };
 
 
-
-
-  useEffect(() => {
-    console.log("Events: ", events);
-  }, [events]);
-
-  const dropdownRef = useRef(null);
-
-  const chains = [
-    { id: 'hedera', name: 'Ethereum', icon: '⟠', color: '#627EEA' }
-  ];
-
-
-  // Effect: when connected & address changes
-  useEffect(() => {
-    if (!isConnected || !address) {
-
-      return;
-    }
-    fetchHbarBalance(address);
-    // For EVM tokens
-    // fetchEvmTokenBalances(address);
-  }, [isConnected, address]);
-
-
   const liquidityData = [
     { chain: 'Ethereum', amount: 25000, percentage: 35, apy: 8.5, utilization: 68, idle: 8000, active: 17000 },
     { chain: 'Polygon', amount: 18500, percentage: 26, apy: 9.2, utilization: 72, idle: 5180, active: 13320 },
@@ -218,7 +197,9 @@ const FeederDashboard = () => {
   };
 
   const handleDeposit = () => {
+    
     if (selectedChain && selectedToken && amount) {
+   
       setShowDepositModal(false);
       setSelectedChain('');
       setSelectedToken('');
@@ -234,6 +215,12 @@ const FeederDashboard = () => {
       setAmount('');
     }
   };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+  };
+
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -245,10 +232,34 @@ const FeederDashboard = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+  useEffect(() => {
+    console.log("Events: ", events);
+  }, [events]);
 
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-  };
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef2 && !dropdownRef2.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [dropdownRef2]);
+
+
+  // Effect: when connected & address changes
+  useEffect(() => {
+    if (!isConnected || !address) {
+
+      return;
+    }
+    fetchHbarBalance(address);
+    // For EVM tokens
+     fetchEvmTokenBalances(address);
+  }, [isConnected, address]);
+
+
 
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
@@ -848,7 +859,7 @@ const FeederDashboard = () => {
                         {selectedToken ? (
                           <>
                             <img
-                              src= "../../../assets/usdt.svg"
+                              src="../../../assets/usdt.svg"
                               alt={tokens.find(t => t.id === selectedToken)?.name}
                               className="w-6 h-6 flex-shrink-0 object-contain"
                             />
@@ -906,11 +917,13 @@ const FeederDashboard = () => {
               )}
               <div className="flex gap-3 pt-2">
                 <button
-                disabled={!selectedChain || !selectedToken || !amount ||amount > tokens.find(t => t.id === selectedToken)?.balance}
-                 onClick={() =>{
-                   setShowDepositModal(false)
-                   }} className="flex-1 px-4 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg font-medium transition-all">Cancel</button>
-                <button onClick={handleDeposit} disabled={!selectedChain || !selectedToken || !amount} className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed">Deposit</button>
+
+                  onClick={() => {
+                    setShowDepositModal(false)
+                  }} className="flex-1 px-4 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg font-medium transition-all">Cancel</button>
+                <button 
+                                  // disabled={!selectedChain || !selectedToken || !amount ||amount > tokens.find(t => t.id === selectedToken)?.balance}
+                onClick={handleDeposit} className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed">Deposit</button>
               </div>
             </div>
           </div>

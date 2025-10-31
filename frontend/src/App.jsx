@@ -42,6 +42,7 @@ import { WagmiProvider } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { projectId, metadata, networks, wagmiAdapter, solanaWeb3JsAdapter } from '../src/src/constants/config'
+import Faucet from './src/pages/faucet';
 
 
 
@@ -97,8 +98,8 @@ const App = () => {
 
     <WagmiProvider config={wagmiAdapter.wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-    
-       
+
+
         <Router> {/* Wrap your entire app with Router */}
           <>
 
@@ -218,6 +219,12 @@ const App = () => {
 
               <Route path="/privacy-policy" element={
                 <PrivacyPolicy
+                  darkMode={isDarkMode}
+                />
+              } />
+
+               <Route path="/faucet" element={
+                <Faucet
                   darkMode={isDarkMode}
                 />
               } />

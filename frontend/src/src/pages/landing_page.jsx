@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { useWallet } from '../hook/wallet';
 
 
@@ -36,15 +35,10 @@ export const LandingPage = ({
 
     features }) => {
 
-    const {
-        disconnectWallet,
-        walletConnected,
-        walletAddress,
-        formatAddress,
-    } = useWallet();
 
     const navigate = useNavigate(); // Initialize useNavigate hook
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+       const [isDropdownOpen2, setIsDropdownOpen2] = useState(false);
     const dropdownRef = useRef(null);
     const [shouldNavigateAfterConnect, setShouldNavigateAfterConnect] = useState(false);
     const year = new Date().getFullYear();
@@ -60,13 +54,7 @@ export const LandingPage = ({
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
-    useEffect(() => {
-        if (walletConnected && shouldNavigateAfterConnect) {
-            navigate("/my-baskets");
-            setIsDropdownOpen(false);
-            setShouldNavigateAfterConnect(false); // Reset flag
-        }
-    }, [walletConnected, shouldNavigateAfterConnect, navigate]);
+
 
     const offerings = [
         "Agentic-AI rebalancing",
@@ -89,12 +77,34 @@ export const LandingPage = ({
             <div className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
                 Basketfy
             </div>
-            <div
-                
+            <button
+           onClick={() => setIsDropdownOpen2(!isDropdownOpen2)}
+
                 className="px-5 text-black py-2 bg-purple-500/20 border border-purple-500/30 rounded-lg  font-mono text-sm flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
                 Testnet
-              </div>
+                <ChevronDown className="w-4 h-4" />
+                 {isDropdownOpen2 && (
+                        <div className={`absolute right-0 mt-2 w-64 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                            } border rounded-lg shadow-xl z-20`}>
+                            <ul className="p-2 space-y-1">
+                                <li>
+                                    <button
+                                        onClick={() => {
+                                            navigate("/faucet");
+
+                                            setIsDropdownOpen2(false);
+                                        }}
+                                        className="w-full font-light text-sm text-left  py-2 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-700 transition-colors"
+                                    >
+                                        Get Testnet Tokens
+                                    </button>
+                                </li>
+                               
+                            </ul>
+                        </div>
+                    )}
+            </button>
             <div className="flex items-center gap-4">
                 <button
                     onClick={() => setDarkMode(!darkMode)}
@@ -513,14 +523,14 @@ export const LandingPage = ({
                             © {year} Basketfy. All rights reserved.
                         </div>
                         <div className="flex items-center gap-6 text-sm">
-                            <button 
-                                    onClick={() => navigate('/privacy-policy')}
-                            className={`${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>
+                            <button
+                                onClick={() => navigate('/privacy-policy')}
+                                className={`${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>
                                 Privacy Policy
                             </button>
                             <button
-                            onClick={() => navigate('/terms-of-service')}
-                             className={`${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>
+                                onClick={() => navigate('/terms-of-service')}
+                                className={`${darkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-gray-900'} transition-colors`}>
                                 Terms of Service
                             </button>
                             {/* <div className="flex items-center gap-2">
