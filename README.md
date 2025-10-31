@@ -3,8 +3,8 @@
 **Track:** Onchain Finance & RWA  
 **Built with:** Hedera Token Service (HTS) • Hedera Smart Contract Service (HSCS) • Hedera Consensus Service (HCS) • Hedera DID
 
-[Certification](https://certs.hashgraphdev.com/6c72b9fc-70c7-4027-93cf-8d436b916410.pdf)
-[PitchDeck](https://drive.google.com/file/d/1zoco-MhcD07vHD5_x9zrPVcgMuuM2ftR/view?usp=sharing)
+- [Certification](https://certs.hashgraphdev.com/6c72b9fc-70c7-4027-93cf-8d436b916410.pdf)
+- [PitchDeck](https://drive.google.com/file/d/1zoco-MhcD07vHD5_x9zrPVcgMuuM2ftR/view?usp=sharing)
 ---
 
 ## 🌍 Overview
