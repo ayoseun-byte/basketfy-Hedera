@@ -11,7 +11,7 @@ const formatAddress = (address) => {
 const globalSlice = createSlice({
     name: 'global',
     initialState: {
-        isDarkMode: false,
+        isDarkMode: true,
         walletConnected: false,
         walletAddress: '',
         formattedAddress: '',

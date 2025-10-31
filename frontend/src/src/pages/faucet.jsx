@@ -20,6 +20,8 @@ import { useAppKitAccount, useAppKit } from '@reown/appkit/react';
 import { Contract, BrowserProvider, parseUnits, formatUnits } from 'ethers';
 import { useAppKitProvider } from "@reown/appkit/react";
 import { MOCK_USDC_ADDRESS } from '../constants/config';
+import { useDispatch } from 'react-redux';
+import { toggleDarkMode } from '../store/store';
 
 // Mock USDC Contract Configuration
 const MINT_AMOUNT = "5000"; // 5000 USDC
@@ -33,12 +35,12 @@ const MOCK_USDC_ABI = [
   "function symbol() external view returns (string)"
 ];
 
-const Faucet = ({ darkMode, setDarkMode }) => {
+const Faucet = ({ darkMode}) => {
   const navigate = useNavigate();
   const { open } = useAppKit();
   const { walletProvider } = useAppKitProvider("eip155");
   const { address, isConnected } = useAppKitAccount();
-
+const dispatch = useDispatch();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState(null);
@@ -149,7 +151,7 @@ const Faucet = ({ darkMode, setDarkMode }) => {
         {/* Desktop Actions */}
         <div className="hidden sm:flex items-center gap-3 lg:gap-4">
           <button
-            onClick={() => setDarkMode(!darkMode)}
+            onClick={() => dispatch(toggleDarkMode())}
             className={`p-2 rounded-lg ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-200 hover:bg-gray-300'} transition-colors`}
             aria-label="Toggle theme"
           >
