@@ -38,7 +38,7 @@ export const LandingPage = ({
 
     const navigate = useNavigate(); // Initialize useNavigate hook
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-       const [isDropdownOpen2, setIsDropdownOpen2] = useState(false);
+    const [isDropdownOpen2, setIsDropdownOpen2] = useState(false);
     const dropdownRef = useRef(null);
     const [shouldNavigateAfterConnect, setShouldNavigateAfterConnect] = useState(false);
     const year = new Date().getFullYear();
@@ -48,7 +48,12 @@ export const LandingPage = ({
         const handleClickOutside = (event) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
                 setIsDropdownOpen(false);
+                setIsDropdownOpen2(false);
             }
+            if (isDropdownOpen2 && dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsDropdownOpen2(false);
+            }
+
         };
 
         document.addEventListener('mousedown', handleClickOutside);
@@ -78,32 +83,32 @@ export const LandingPage = ({
                 Basketfy
             </div>
             <button
-           onClick={() => setIsDropdownOpen2(!isDropdownOpen2)}
-
-                className="px-5 text-black py-2 bg-purple-500/20 border border-purple-500/30 rounded-lg  font-mono text-sm flex items-center gap-2">
+                onClick={() => setIsDropdownOpen2(!isDropdownOpen2)}
+                
+                className={`px-5 ${darkMode ? 'text-white' : 'text-black'} py-2 bg-purple-500/20 border border-purple-500/30 rounded-lg  font-mono text-sm flex items-center gap-2`}>
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
                 Testnet
                 <ChevronDown className="w-4 h-4" />
-                 {isDropdownOpen2 && (
-                        <div className={`absolute right-0 mt-2 w-64 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-                            } border rounded-lg shadow-xl z-20`}>
-                            <ul className="p-2 space-y-1">
-                                <li>
-                                    <button
-                                        onClick={() => {
-                                            navigate("/faucet");
+                {isDropdownOpen2 && (
+                    <div className={`absolute  left-50 mt-28 w-48 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                        } border rounded-lg shadow-xl z-20`}>
+                        <ul className="p-2 space-y-1">
+                            <li>
+                                <button
+                                    onClick={() => {
+                                        navigate("/faucet");
 
-                                            setIsDropdownOpen2(false);
-                                        }}
-                                        className="w-full font-light text-sm text-left  py-2 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-700 transition-colors"
-                                    >
-                                        Get Testnet Tokens
-                                    </button>
-                                </li>
-                               
-                            </ul>
-                        </div>
-                    )}
+                                        setIsDropdownOpen2(false);
+                                    }}
+                                    className="w-full font-light text-sm text-left  py-2 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-700 transition-colors"
+                                >
+                                    Get Testnet Tokens
+                                </button>
+                            </li>
+
+                        </ul>
+                    </div>
+                )}
             </button>
             <div className="flex items-center gap-4">
                 <button

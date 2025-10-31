@@ -48,7 +48,7 @@ const FeederDashboard = () => {
   const [dropdownRef2, setDropdownRef2] = useState(null);
   const dropdownRef = useRef(null);
   const chains = [
-    { id: 'hedera', name: 'Ethereum', icon: '⟠', color: '#627EEA' }
+    { id: 'hedera', name: 'Hedera', icon: '⟠', color: '#627EEA' }
   ];
 
 
@@ -145,10 +145,10 @@ const FeederDashboard = () => {
 
 
   const liquidityData = [
-    { chain: 'Ethereum', amount: 25000, percentage: 35, apy: 8.5, utilization: 68, idle: 8000, active: 17000 },
-    { chain: 'Polygon', amount: 18500, percentage: 26, apy: 9.2, utilization: 72, idle: 5180, active: 13320 },
-    { chain: 'Arbitrum', amount: 15200, percentage: 21, apy: 7.8, utilization: 65, idle: 5320, active: 9880 },
-    { chain: 'Base', amount: 12800, percentage: 18, apy: 8.9, utilization: 70, idle: 3840, active: 8960 }
+    { chain: 'USDC', amount: 25000, percentage: 35, apy: 8.5, utilization: 68, idle: 8000, active: 17000 },
+    { chain: 'HCHF', amount: 18500, percentage: 26, apy: 9.2, utilization: 72, idle: 5180, active: 13320 },
+    { chain: 'DAI', amount: 15200, percentage: 21, apy: 7.8, utilization: 65, idle: 5320, active: 9880 },
+    { chain: 'USDT', amount: 12800, percentage: 18, apy: 8.9, utilization: 70, idle: 3840, active: 8960 }
   ];
 
   const earningsHistory = [
