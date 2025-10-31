@@ -11,27 +11,30 @@ const formatAddress = (address) => {
 const globalSlice = createSlice({
     name: 'global',
     initialState: {
-        isDarkMode: false,
+        isDarkMode: true,
         walletConnected: false,
         walletAddress: '',
         formattedAddress: '',
         curatorData: null,
         userData: null,
         feederData: null,
+         isConnected: false,
+  accountId: null,
+  isLoading: false,
     },
     reducers: {
         setDarkMode(state, action) {
             state.isDarkMode = action.payload;
         },
-        
+
         toggleDarkMode(state) {
             state.isDarkMode = !state.isDarkMode;
         },
-        
+
         setWalletConnected(state, action) {
             state.walletConnected = action.payload;
         },
-        
+
         setWalletAddress(state, action) {
             const address = action.payload;
             if (address && typeof address === 'string') {
@@ -40,35 +43,35 @@ const globalSlice = createSlice({
                 state.walletConnected = true;
             }
         },
-        
+
         setFormattedAddress(state, action) {
             state.formattedAddress = action.payload;
         },
-        
+
         setCuratorData(state, action) {
             state.curatorData = action.payload;
         },
-        
+
         clearCuratorData(state) {
             state.curatorData = null;
         },
-        
+
         setUserData(state, action) {
             state.userData = action.payload;
         },
-        
+
         clearUserData(state) {
             state.userData = null;
         },
-        
+
         setFeederData(state, action) {
             state.feederData = action.payload;
         },
-        
+
         clearFeederData(state) {
             state.feederData = null;
         },
-        
+
         resetWallet(state) {
             state.walletConnected = false;
             state.walletAddress = '';
@@ -76,6 +79,19 @@ const globalSlice = createSlice({
             state.curatorData = null;
             state.userData = null;
             state.feederData = null;
+        },
+        setLoading: (state, action) => {
+            state.isLoading = action.payload;
+        },
+        setConnected: (state, action) => {
+            state.isConnected = true;
+            state.accountId = action.payload.accountId;
+            state.isLoading = false;
+        },
+        setDisconnected: (state) => {
+            state.isConnected = false;
+            state.accountId = null;
+            state.isLoading = false;
         },
     },
 });
@@ -93,6 +109,7 @@ export const {
     setFeederData,
     clearFeederData,
     resetWallet,
+    setLoading, setConnected, setDisconnected
 } = globalSlice.actions;
 
 // Selectors

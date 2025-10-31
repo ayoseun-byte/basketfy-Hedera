@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   X,
   Loader2,
@@ -7,14 +7,11 @@ import {
 } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useWallet } from '../hook/wallet';
-
 import toast from 'react-hot-toast';
-
 import {
   setWalletConnected,
   setWalletAddress,
   setFormattedAddress,
-  resetWallet,
 } from '../store/store';
 
 const WalletModal = ({ showWalletModal, setShowWalletModal, darkMode }) => {
@@ -30,24 +27,15 @@ const WalletModal = ({ showWalletModal, setShowWalletModal, darkMode }) => {
   const dispatch = useDispatch();
   const [error, setError] = useState('');
 
-  const wallets = [
-    { name: 'Phantom', icon: './src/assets/ghost.png', adapter: 'phantom' },
-    { name: 'Metamask', icon: './src/assets/metamask.png', adapter: 'metamask' },
-    // { name: 'Backpack', icon: '🎒', adapter: 'backpack' },
-    // { name: 'Coinbase Wallet', icon: '🔵', adapter: 'coinbase' }
-  ];
+  const formattedWalletAddress = useSelector((state) => state.global.formattedAddress);
 
-
-  const formatxwalletAddress = useSelector((state) => state.global.formattedAddress);
-
-  const handleConnect = async (walletType) => {
+  const handleConnect = async () => {
     setError('');
 
-    const result = await connectWallet(walletType);
+    // Only MetaMask is supported now
+    const result = await connectWallet();
 
     if (result.success) {
-      //  console.log(result);
-      // ✅ Update Redux store with correct values
       dispatch(setWalletConnected(true));
       dispatch(setWalletAddress(result.address));
       dispatch(setFormattedAddress(formatAddress(result.address)));
@@ -61,7 +49,9 @@ const WalletModal = ({ showWalletModal, setShowWalletModal, darkMode }) => {
 
   const handleDisconnect = async () => {
     await disconnectWallet();
-
+    dispatch(setWalletConnected(false));
+    dispatch(setWalletAddress(''));
+    dispatch(setFormattedAddress(''));
   };
 
   if (!showWalletModal) return null;
@@ -86,10 +76,10 @@ const WalletModal = ({ showWalletModal, setShowWalletModal, darkMode }) => {
             <div className={`p-4 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-green-50'} border ${darkMode ? 'border-gray-600' : 'border-green-200'}`}>
               <div className="flex items-center gap-2 mb-2">
                 <CheckCircle className="text-green-500" size={20} />
-                <span className="font-medium text-green-700 dark:text-green-400">Connected</span>
+                <span className="font-medium text-green-700 dark:text-green-400">Connected to Hedera Testnet</span>
               </div>
               <div className="text-sm opacity-75">
-                Address: {formatxwalletAddress}
+                Address: {formattedWalletAddress}
               </div>
             </div>
 
@@ -111,22 +101,36 @@ const WalletModal = ({ showWalletModal, setShowWalletModal, darkMode }) => {
               </div>
             )}
 
-            {wallets.map((wallet) => (
-              <button
-                key={wallet.adapter}
-                onClick={() => handleConnect(wallet.adapter)}
-                disabled={connecting}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg border ${darkMode ? 'border-gray-600 hover:bg-gray-700' : 'border-gray-300 hover:bg-gray-50'
-                  } transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                <img src={wallet.icon} className="w-8 h-8 flex items-center justify-center text-lg" />
+            <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 p-3 rounded-lg mb-4">
+              <p className="text-sm text-blue-700 dark:text-blue-400">
+                This app uses MetaMask on the Hedera Testnet. MetaMask will be automatically configured when you connect.
+              </p>
+            </div>
 
-                <span className={`${darkMode ? 'text-white' : 'text-gray-900'} flex-1 text-left font-thin`}>
-                  {wallet.name}
-                </span>
-                {connecting && <Loader2 className="animate-spin" size={16} />}
-              </button>
-            ))}
+            <button
+              onClick={handleConnect}
+              disabled={connecting}
+              className={`w-full flex items-center gap-3 p-3 rounded-lg border ${
+                darkMode
+                  ? 'border-gray-600 hover:bg-gray-700'
+                  : 'border-gray-300 hover:bg-gray-50'
+              } transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-orange-500 to-orange-600 text-white border-none hover:from-orange-600 hover:to-orange-700`}
+            >
+              <img
+                src="./src/assets/metamask.png"
+                alt="MetaMask"
+                className="w-8 h-8"
+                onError={(e) => {
+                  e.target.src = '🦊';
+                  e.target.className = 'text-2xl';
+                }}
+              />
+
+              <span className="flex-1 text-left font-semibold">
+                {connecting ? 'Connecting...' : 'Connect MetaMask'}
+              </span>
+              {connecting && <Loader2 className="animate-spin" size={16} />}
+            </button>
           </div>
         )}
       </div>

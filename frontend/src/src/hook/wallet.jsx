@@ -1,23 +1,107 @@
-// hooks/useWallet.js
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Connection, PublicKey, LAMPORTS_PER_SOL, SYSVAR_RENT_PUBKEY, SystemProgram, Keypair, } from '@solana/web3.js';
-import { AnchorProvider } from '@coral-xyz/anchor';
-import idl from '../components/contract/basketfy.json';
-import * as anchor from '@coral-xyz/anchor';
-import { getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, TOKEN_PROGRAM_ID, } from '@solana/spl-token';
-import logger from '../uutils/logger';
+// src/hooks/wallet.js
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { ethers } from 'ethers';
 import toast from 'react-hot-toast';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   setWalletConnected,
   setFormattedAddress,
-  resetWallet,
 } from '../store/store';
+import logger from '../uutils/logger';
+
+// Vault ABI
+const VAULT_ABI = [
+  {
+    inputs: [
+      { internalType: 'string', name: 'did', type: 'string' },
+      { internalType: 'address', name: 'feederAddress', type: 'address' },
+    ],
+    name: 'registerFeeder',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'feeder', type: 'address' },
+      { internalType: 'address', name: 'stablecoin', type: 'address' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
+    ],
+    name: 'depositLiquidity',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'feeder', type: 'address' },
+      { internalType: 'address', name: 'stablecoin', type: 'address' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
+    ],
+    name: 'withdrawLiquidity',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'feeder', type: 'address' }],
+    name: 'claimYield',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'feeder', type: 'address' }],
+    name: 'calculateYield',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'feeder', type: 'address' }],
+    name: 'getFeederInfo',
+    outputs: [
+      {
+        components: [
+          { internalType: 'string', name: 'did', type: 'string' },
+          { internalType: 'uint256', name: 'stablecoinBalance', type: 'uint256' },
+          { internalType: 'uint256', name: 'depositTimestamp', type: 'uint256' },
+          { internalType: 'uint256', name: 'yieldEarned', type: 'uint256' },
+          { internalType: 'bool', name: 'verified', type: 'bool' },
+        ],
+        internalType: 'struct FeedersVault.Feeder',
+        name: '',
+        type: 'tuple',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'getTotalFeederLiquidity',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+];
+
+// Hedera Testnet Configuration
+const HEDERA_TESTNET = {
+  chainId: '0x128',
+  chainIdDecimal: 296,
+  rpcUrl: 'https://testnet.hashio.io/api',
+  chainName: 'Hedera Testnet',
+  nativeCurrency: {
+    name: 'HBAR',
+    symbol: 'HBAR',
+    decimals: 18,
+  },
+  blockExplorerUrl: 'https://hashscan.io/testnet',
+};
+
 // Wallet Context
 const WalletContext = createContext({});
-
-// Constants
-const METADATA_PROGRAM_ID = new PublicKey('metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s');
 
 // Wallet Provider Component
 export const WalletProvider = ({ children }) => {
@@ -25,193 +109,196 @@ export const WalletProvider = ({ children }) => {
   const [walletAddress, setWalletAddress] = useState('');
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
-  const [walletType, setWalletType] = useState('');
-  const [connection, setConnection] = useState(null);
-  const [anchorProvider, setAnchorProvider] = useState(null);
-  const [program, setProgram] = useState(null);
+  const [provider, setProvider] = useState(null);
+  const [signer, setSigner] = useState(null);
+  const [vaultContract, setVaultContract] = useState(null);
   const dispatch = useDispatch();
-  // Initialize Solana connection
+
+  // Initialize on mount
   useEffect(() => {
-    initializeSolanaConnection();
+    initializeWallet();
     checkExistingConnection();
   }, []);
 
-  // Initialize program when anchor provider is set
-  useEffect(() => {
-    if (anchorProvider) {
-      initializeProgram();
-    }
-  }, [anchorProvider]);
-
-  const initializeSolanaConnection = () => {
-    try {
-      // You can switch between devnet, testnet, mainnet-beta
-      const rpcUrl = import.meta.env.VITE_SOLANA_DEVNET_RPC_URL
-
-      const conn = new Connection(rpcUrl, 'confirmed');
-      setConnection(conn);
-
-      logger(`Solana connection initialized: ${rpcUrl}`);
-    } catch (error) {
-      logger('Failed to initialize Solana connection:', error);
-    }
-  };
-
-  const initializeProgram = () => {
-    try {
-      if (!anchorProvider) return;
-
-      const programInstance = new anchor.Program(idl, anchorProvider);
-      setProgram(programInstance);
-
-      logger(`Program ID: ${programInstance.programId.toString()}`);
-    } catch (error) {
-      logger(`Failed to initialize program: ${error}`);
+  const initializeWallet = () => {
+    if (typeof window !== 'undefined' && window.ethereum) {
+      const ethProvider = new ethers.BrowserProvider(window.ethereum);
+      setProvider(ethProvider);
+      logger('MetaMask provider initialized');
     }
   };
 
   const checkExistingConnection = async () => {
     const savedAddress = sessionStorage.getItem('walletAddress');
-    const savedWalletType = sessionStorage.getItem('walletType');
 
-    if (savedAddress && savedWalletType) {
+    if (savedAddress) {
       try {
-        await connectWallet(savedWalletType, true);
+        await connectWallet(true);
       } catch (error) {
         logger(`Failed to restore wallet connection: ${error}`);
         sessionStorage.removeItem('walletAddress');
-        sessionStorage.removeItem('walletType');
       }
     }
   };
 
-  const connectWallet = async (type, skipPrompt = false) => {
+  const switchToHederaTestnet = async (metaMaskProvider) => {
+    if (!metaMaskProvider) {
+      toast.error('MetaMask not installed');
+      return false;
+    }
+
+    try {
+      await metaMaskProvider.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: HEDERA_TESTNET.chainId }],
+      });
+      logger('Switched to Hedera Testnet');
+      return true;
+    } catch (error) {
+      if (error.code === 4902) {
+        try {
+          await metaMaskProvider.request({
+            method: 'wallet_addEthereumChain',
+            params: [
+              {
+                chainId: HEDERA_TESTNET.chainId,
+                chainName: HEDERA_TESTNET.chainName,
+                rpcUrls: [HEDERA_TESTNET.rpcUrl],
+                nativeCurrency: HEDERA_TESTNET.nativeCurrency,
+                blockExplorerUrls: [HEDERA_TESTNET.blockExplorerUrl],
+              },
+            ],
+          });
+          logger('Added Hedera Testnet to MetaMask');
+          return true;
+        } catch (addError) {
+          logger(`Failed to add Hedera Testnet: ${addError.message}`);
+          toast.error('Failed to add Hedera Testnet');
+          return false;
+        }
+      }
+      logger(`Failed to switch network: ${error.message}`);
+      toast.error('Failed to switch to Hedera Testnet');
+      return false;
+    }
+  };
+
+  const connectWallet = async (skipPrompt = false) => {
     setConnecting(true);
 
     try {
-      let walletAdapter;
-      let response;
-
-      switch (type) {
-        case 'phantom':
-          if (!window.solana?.isPhantom) {
-            return { success: false, error: 'Phantom Wallet not found. Please install Phantom.' };
-          }
-          walletAdapter = window.solana;
-          response = skipPrompt
-            ? await walletAdapter.connect({ onlyIfTrusted: true })
-            : await walletAdapter.connect();
-          break;
-
-        case 'metamask':
-          if (!window.ethereum?.isMetaMask) {
-            return { success: false, error: 'MetaMask Wallet not found. Please install MetaMask.' };
-          }
-          walletAdapter = window.ethereum;
-
-          if (skipPrompt) {
-            // Check if already connected
-            const accounts = await walletAdapter.request({ method: 'eth_accounts' });
-            if (accounts.length === 0) {
-              return { success: false, error: 'MetaMask not connected. Please connect manually first.' };
-            }
-            response = { publicKey: { toString: () => accounts[0] } };
-          } else {
-            const accounts = await walletAdapter.request({ method: 'eth_requestAccounts' });
-            response = { publicKey: { toString: () => accounts[0] } };
-          }
-          break;
-
-        default:
-          return { success: false, error: "unsupported wallet type" };
+      // Find MetaMask specifically
+      let metaMaskProvider = null;
+      
+      if (window.ethereum?.isMetaMask && !window.ethereum?.isTrustWallet) {
+        metaMaskProvider = window.ethereum;
+      } else if (window.ethereum?.providers?.length > 0) {
+        // Check provider array if multiple wallets installed
+        metaMaskProvider = window.ethereum.providers.find(p => p.isMetaMask && !p.isTrustWallet);
+      }
+      
+      if (!metaMaskProvider) {
+        toast.error('MetaMask not found. Please install MetaMask.');
+        return { success: false, error: 'MetaMask not installed' };
       }
 
-      if (response?.publicKey) {
-        const address = response.publicKey.toString();
-
-        setWallet(walletAdapter);
-        setWalletAddress(address);
-        setConnected(true);
-        setWalletType(type);
-
-        // Store in session
-        sessionStorage.setItem('walletAddress', address);
-        sessionStorage.setItem('walletType', type);
-
-        // Setup Anchor provider for program interactions
-        setupAnchorProvider(walletAdapter);
-
-        // Setup event listeners
-        setupWalletEventListeners(walletAdapter);
-
-        return { success: true, address };
+      // Check and switch network
+      const networkSwitched = await switchToHederaTestnet(metaMaskProvider);
+      if (!networkSwitched) {
+        return { success: false, error: 'Failed to switch to Hedera Testnet' };
       }
+
+      // Request accounts
+      let accounts;
+      if (skipPrompt) {
+        accounts = await metaMaskProvider.request({ method: 'eth_accounts' });
+        if (accounts.length === 0) {
+          return { success: false, error: 'MetaMask not connected' };
+        }
+      } else {
+        accounts = await metaMaskProvider.request({
+          method: 'eth_requestAccounts',
+        });
+      }
+
+      const address = accounts[0];
+
+      // Setup provider and signer
+      const ethProvider = new ethers.BrowserProvider(metaMaskProvider);
+      const ethSigner = await ethProvider.getSigner();
+
+      setWallet(metaMaskProvider);
+      setWalletAddress(address);
+      setProvider(ethProvider);
+      setSigner(ethSigner);
+      setConnected(true);
+
+      // Initialize vault contract
+      const vaultAddr = import.meta.env.VITE_VAULT_CONTRACT_ADDRESS;
+      if (vaultAddr) {
+        const vault = new ethers.Contract(vaultAddr, VAULT_ABI, ethSigner);
+        setVaultContract(vault);
+        logger(`Vault contract initialized: ${vaultAddr}`);
+      }
+
+      // Store in session
+      sessionStorage.setItem('walletAddress', address);
+
+      // Setup event listeners
+      setupWalletEventListeners();
+
+      dispatch(setWalletConnected(true));
+      dispatch(setFormattedAddress(formatAddress(address)));
+
+      toast.success(`Connected: ${formatAddress(address)}`);
+      logger(`Wallet connected: ${address}`);
+
+      return { success: true, address };
     } catch (error) {
       logger(`Wallet connection error: ${error.message}`);
+      toast.error('Failed to connect wallet');
       return { success: false, error: error.message };
     } finally {
       setConnecting(false);
     }
   };
 
-  const setupAnchorProvider = (walletAdapter) => {
-    try {
-      if (!connection) {
-        logger('Connection not available for Anchor provider setup');
-        return;
-      }
+  const setupWalletEventListeners = () => {
+    if (!window.ethereum) return;
 
-      const provider = new AnchorProvider(connection, walletAdapter, {
-        commitment: 'confirmed',
-        preflightCommitment: 'confirmed',
-      });
-      anchor.setProvider(provider);
-      setAnchorProvider(provider);
+    window.ethereum.removeAllListeners?.();
 
-      logger(`Anchor provider initialized with wallet: ${walletAdapter.publicKey?.toString()}`);
-    } catch (error) {
-      logger(`Failed to setup Anchor provider: ${error.message}`);
-    }
-  };
-
-  const setupWalletEventListeners = (walletAdapter) => {
-    walletAdapter.on('connect', (publicKey) => {
-      logger(`Wallet connected: ${publicKey.toString()}`);
-    });
-
-    walletAdapter.on('disconnect', () => {
-      logger('Wallet disconnected');
-      handleDisconnect();
-    });
-
-    walletAdapter.on('accountChanged', (publicKey) => {
-      if (publicKey) {
-        const newAddress = publicKey.toString();
+    window.ethereum.on('accountsChanged', (accounts) => {
+      if (accounts.length === 0) {
+        handleDisconnect();
+      } else {
+        const newAddress = accounts[0];
         setWalletAddress(newAddress);
         sessionStorage.setItem('walletAddress', newAddress);
-
+        dispatch(setFormattedAddress(formatAddress(newAddress)));
         logger(`Account changed: ${newAddress}`);
-      } else {
-        handleDisconnect();
       }
+    });
+
+    window.ethereum.on('chainChanged', () => {
+      logger('Network changed');
+      window.location.reload();
+    });
+
+    window.ethereum.on('disconnect', () => {
+      handleDisconnect();
     });
   };
 
   const disconnectWallet = async () => {
     try {
-      if (wallet) {
-        await wallet.disconnect();
-      }
       handleDisconnect();
       dispatch(setWalletConnected(false));
-      dispatch(setWalletAddress("null"));
-      dispatch(setFormattedAddress(formatAddress("null")));
+      dispatch(setFormattedAddress(''));
+      toast.success('Wallet disconnected');
     } catch (error) {
       logger(`Disconnect error: ${error.message}`);
-      handleDisconnect(); // Force disconnect even if error
-      dispatch(setWalletConnected(false));
-      dispatch(setWalletAddress("null"));
-      dispatch(setFormattedAddress(formatAddress("null")));
+      handleDisconnect();
     }
   };
 
@@ -219,423 +306,177 @@ export const WalletProvider = ({ children }) => {
     setWallet(null);
     setWalletAddress('');
     setConnected(false);
-    setWalletType('');
-    setAnchorProvider(null);
-    setProgram(null);
+    setSigner(null);
+    setVaultContract(null);
     sessionStorage.removeItem('walletAddress');
-    sessionStorage.removeItem('walletType');
-    if (wallet?.removeAllListeners) {
-      wallet.removeAllListeners('connect');
-      wallet.removeAllListeners('disconnect');
-      wallet.removeAllListeners('accountChanged');
+
+    if (window.ethereum?.removeAllListeners) {
+      window.ethereum.removeAllListeners();
     }
   };
 
-  const signTransaction = async (transaction) => {
-    if (!wallet || !connected) {
+  // Vault Contract Functions
+  const registerFeeder = async (did, feederAddress) => {
+    if (!vaultContract || !signer) {
       toast.error('Wallet not connected');
-      return;
-    }
-    if (typeof wallet.signTransaction !== 'function') {
-      toast.error("Current wallet does not support signing transactions");
-      return;
+      return { success: false, error: 'Wallet not connected' };
     }
 
     try {
-      const signedTransaction = await wallet.signTransaction(transaction);
-      return signedTransaction;
+      const tx = await vaultContract.registerFeeder(did, feederAddress);
+      await tx.wait();
+      toast.success('Feeder registered successfully');
+      logger(`Feeder registered: ${feederAddress}`);
+      return { success: true, txHash: tx.hash };
     } catch (error) {
-      toast.error('Transaction signing failed');
-      logger(`Transaction signing error: ${error.message}`);
-      return;
+      logger(`Register feeder error: ${error.message}`);
+      toast.error('Failed to register feeder');
+      return { success: false, error: error.message };
     }
   };
 
-  const signAllTransactions = async (transactions) => {
-    if (!wallet || !connected) {
+  const depositLiquidity = async (feederAddress, stablecoinAddress, amount) => {
+    if (!vaultContract || !signer) {
       toast.error('Wallet not connected');
-      return;
+      return { success: false, error: 'Wallet not connected' };
     }
 
     try {
-      const signedTransactions = await wallet.signAllTransactions(transactions);
-      return signedTransactions;
-    } catch (error) {
-      toast.error('Failed to sign multiple transactions');
-      return;
-    }
-  };
-
-  const signMessage = async (message) => {
-    if (!wallet || !connected) {
-      toast.error('Wallet not connected');
-      return;
-    }
-
-    try {
-      const signature = await wallet.signMessage(new TextEncoder().encode(message));
-      return signature;
-    } catch (error) {
-      toast.error('Message signing failed');
-      logger(`Message signing error: ${error.message}`);
-      return;
-    }
-  };
-
-  const sendTransaction = async (transaction, options = {}) => {
-    if (!wallet || !connected || !connection) {
-      toast.error('Wallet or connection not available');
-      return;
-    }
-
-    try {
-      const signedTx = await wallet.signTransaction(transaction);
-      const signature = await connection.sendRawTransaction(signedTx.serialize(), options);
-
-      const confirmation = await connection.confirmTransaction(signature, 'confirmed');
-      logger(`Transaction confirmed: ${JSON.stringify(confirmation)}`);
-      return { signature, confirmation };
-    } catch (error) {
-      toast.error('Transaction failed');
-      logger(`Transaction send error: ${error.message}`);
-      return;
-    }
-  };
-
-  const getBalance = async () => {
-    if (!connection || !walletAddress) {
-      return 0;
-    }
-
-    try {
-      const publicKey = new PublicKey(walletAddress);
-      const balance = await connection.getBalance(publicKey);
-      return balance / 1000000000; // Convert lamports to SOL
-    } catch (error) {
-      toast.error('Failed to fetch balance');
-      logger(`Balance fetch error: ${error.message}`);
-      return 0;
-    }
-  };
-
-  // Helper functions for basket creation
-  const findFactoryPDA = (programId) => {
-    return PublicKey.findProgramAddressSync(
-      [Buffer.from("factory")],
-      programId
-    );
-  };
-
-  const findConfigPDA = (factory, basketCount) => {
-    return PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("config"),
-        factory.toBuffer(),
-        basketCount.toArrayLike(Buffer, "le", 8)
-      ],
-      program.programId
-    );
-  };
-
-  const findMintAuthorityPDA = (config) => {
-    return PublicKey.findProgramAddressSync(
-      [Buffer.from("mint-authority"), config.toBuffer()],
-      program.programId
-    );
-  };
-
-  const findMetadataPDA = (mint) => {
-    return PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("metadata"),
-        METADATA_PROGRAM_ID.toBuffer(),
-        mint.toBuffer()
-      ],
-      METADATA_PROGRAM_ID
-    );
-  };
-
-  // Main basket creation function
-  const createBasket = async (name, symbol, uri, decimals, tokenMints, weights) => {
-    if (!wallet || !connected || !program || !anchorProvider) {
-      toast.error('Wallet not connected or program not initialized');
-      return;
-    }
-
-    try {
-      // Validate inputs
-      if (tokenMints.length === 0 || weights.length === 0) {
-        toast.error('Token mints and weights are required');
-        return;
-      }
-
-      if (tokenMints.length !== weights.length) {
-        toast.error('Token mints and weights must have the same length');
-        return;
-      }
-
-      const payer = new PublicKey(walletAddress);
-      const mintKeypair = Keypair.generate();
-
-      // Find PDAs
-      const [factoryPDA] = findFactoryPDA(program.programId);
-      const factoryAccount = await program.account.factoryState.fetch(factoryPDA);
-      const basketCount = factoryAccount.basketCount;
-
-      const [configPDA] = findConfigPDA(factoryPDA, basketCount);
-      const [mintAuthorityPDA] = findMintAuthorityPDA(configPDA);
-      const [metadataPDA] = findMetadataPDA(mintKeypair.publicKey);
-
-      console.log('Creating basket with:', {
-        name,
-        symbol,
-        uri,
-        decimals,
-        tokenMints: tokenMints,
-        weights: weights,
-        factoryPDA: factoryPDA.toString(),
-        configPDA: configPDA.toString(),
-        mintKeypair: mintKeypair.publicKey.toString()
-      });
-
-      // Convert token mint strings to PublicKey objects
-      const tokenMintPublicKeys = tokenMints.map(mint => {
-        try {
-          return new PublicKey(mint);
-        } catch (error) {
-          throw new Error(`Invalid token mint address: ${mint}`);
-        }
-      });
-
-      // Convert weights to anchor.BN (BigNumber) objects
-      const weightsBN = weights.map(weight => new anchor.BN(weight * 100));
-
-      // Create the transaction
-      const tx = await program.methods
-        .createBasket(
-          name,
-          symbol,
-          uri,
-          decimals,
-          tokenMintPublicKeys,
-          weightsBN
-        )
-        .accounts({
-          payer: payer,
-          config: configPDA,
-          mintAuthority: mintAuthorityPDA,
-          metadataAccount: metadataPDA,
-          mintAccount: mintKeypair.publicKey,
-          tokenMetadataProgram: METADATA_PROGRAM_ID,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          systemProgram: SystemProgram.programId,
-          rent: SYSVAR_RENT_PUBKEY,
-        })
-        .signers([mintKeypair])
-        .rpc();
-
-      return {
-        success: true,
-        transactionSignature: tx,
-        configPDA: configPDA.toString(),
-        mintAddress: mintKeypair.publicKey.toString(),
-        basketDetails: {
-          name,
-          symbol,
-          uri,
-          decimals,
-          tokenMints,
-          weights,
-          basketReferenceId: basketCount.toString(),
-        }
-      };
-    } catch (error) {
-      toast.error('Failed to create basket');
-      logger(`Basket creation error: ${error.message}`);
-      return {
-        success: false,
-        transactionSignature: "",
-        configPDA: "",
-        mintAddress: "",
-        error: error.message || 'Failed to create basket'
-      };
-    }
-  };
-
-  const buyBasket = async (amount, basketMint, basketId) => {
-    if (!wallet || !connected || !program || !anchorProvider) {
-      toast.error('Wallet not connected or program not initialized');
-      return;
-    }
-
-    try {
-      const payer = new PublicKey(walletAddress);
-      basketMint = new PublicKey(basketMint);
-
-      // Get the token account of the sender
-      const userTokenAccount = await getAssociatedTokenAddress(
-        basketMint,
-        payer
+      const amountWei = ethers.parseUnits(amount.toString(), 18);
+      const tx = await vaultContract.depositLiquidity(
+        feederAddress,
+        stablecoinAddress,
+        amountWei
       );
-
-      const accountInfo = await program.provider.connection.getAccountInfo(userTokenAccount);
-      if (!accountInfo) {
-        // ATA doesn't exist
-        toast.error('Associated token account not found. Creating ATA...', {
-          icon: '⚠️',
-          duration: 5000,
-          style: {
-            border: '1px solid #F87171',
-            padding: '16px',
-            color: '#B91C1C',
-            backgroundColor: '#FEF2F2',
-          },
-          position: 'top-right',
-        });
-
-        const createATAIx = createAssociatedTokenAccountInstruction(
-          payer,          // payer
-          userTokenAccount, // ATA to be created
-          payer,          // owner of the ATA
-          basketMint      // mint of the token
-        );
-
-        const tx = new anchor.web3.Transaction().add(createATAIx);
-        await program.provider.sendAndConfirm(tx, []);
-
-        toast.success('Associated token account created successfully');
-        logger(`Associated token account created: ${userTokenAccount.toString()}`);
-      } else {
-        const tokenBalance = await program.provider.connection.getTokenAccountBalance(userTokenAccount);
-        logger(`User token account found: ${userTokenAccount.toString()}, Balance: ${tokenBalance.value.uiAmount}`);
-      }
-
-      // Find PDAs
-      const [factoryPDA] = findFactoryPDA(program.programId);
-      const [configPDA] = findConfigPDA(factoryPDA, new anchor.BN(basketId));
-      const [mintAuthorityPDA] = findMintAuthorityPDA(configPDA);
-
-      logger(`Creating basket mint with: ${JSON.stringify({
-        userTokenAccount: userTokenAccount.toString(),
-        factoryPDA: factoryPDA.toString(),
-        configPDA: configPDA.toString(),
-        basketMint: basketMint.toString()
-      })}`);
-
-      // Create the transaction
-      const tx = await program.methods
-        .mintBasketToken(
-          new anchor.BN(amount * LAMPORTS_PER_SOL) // Convert amount to lamports
-        )
-        .accounts({
-          config: configPDA,
-          mintAuthority: mintAuthorityPDA,
-          mint: basketMint,
-          recipientTokenAccount: userTokenAccount,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .rpc();
-
-      logger("Basket token mint created successfully:", tx);
-
-      return {
-        success: true,
-        transactionSignature: tx,
-        configPDA: configPDA.toString(),
-        mintAddress: basketMint.toString(),
-        message: `Successfully bought ${amount} of the basket`
-      };
+      await tx.wait();
+      toast.success(`Deposited ${amount} successfully`);
+      logger(`Liquidity deposited: ${amount}`);
+      return { success: true, txHash: tx.hash };
     } catch (error) {
-      logger(`Error buying basket: ${error}`);
-      return {
-        success: false,
-        transactionSignature: "",
-        configPDA: "",
-        mintAddress: "",
-        error: error.message || 'Failed to buy basket'
-      };
+      logger(`Deposit error: ${error.message}`);
+      toast.error('Failed to deposit liquidity');
+      return { success: false, error: error.message };
     }
   };
 
-  // Get factory information
-  const getFactoryInfo = async () => {
-    if (!program) {
-      logger('Program not initialized');
-      return;
+  const withdrawLiquidity = async (feederAddress, stablecoinAddress, amount) => {
+    if (!vaultContract || !signer) {
+      toast.error('Wallet not connected');
+      return { success: false, error: 'Wallet not connected' };
     }
 
     try {
-      const [factoryPDA] = findFactoryPDA(program.programId);
-      const factoryAccount = await program.account.factoryState.fetch(factoryPDA);
-
-      return {
-        factoryPDA: factoryPDA.toString(),
-        basketCount: factoryAccount.basketCount.toString(),
-        authority: factoryAccount.authority.toString()
-      };
+      const amountWei = ethers.parseUnits(amount.toString(), 18);
+      const tx = await vaultContract.withdrawLiquidity(
+        feederAddress,
+        stablecoinAddress,
+        amountWei
+      );
+      await tx.wait();
+      toast.success(`Withdrawn ${amount} successfully`);
+      logger(`Liquidity withdrawn: ${amount}`);
+      return { success: true, txHash: tx.hash };
     } catch (error) {
-      logger(`Error fetching factory info: ${error.message}`);
-      return;
+      logger(`Withdrawal error: ${error.message}`);
+      toast.error('Failed to withdraw liquidity');
+      return { success: false, error: error.message };
     }
   };
 
-  // Get basket configuration
-  const getBasketConfig = async (configPDA) => {
-    if (!program) {
-      logger('Program not initialized');
-      return;
+  const claimYield = async (feederAddress) => {
+    if (!vaultContract || !signer) {
+      toast.error('Wallet not connected');
+      return { success: false, error: 'Wallet not connected' };
     }
 
     try {
-      const configPublicKey = new PublicKey(configPDA);
-      const configAccount = await program.account.basketConfig.fetch(configPublicKey);
-
-      return {
-        name: configAccount.name,
-        symbol: configAccount.symbol,
-        decimals: configAccount.decimals,
-        mintAccount: configAccount.mintAccount.toString(),
-        authority: configAccount.authority.toString(),
-        tokenMints: configAccount.tokenMints.map(mint => mint.toString()),
-        weights: configAccount.weights.map(weight => weight.toString()),
-        totalSupply: configAccount.totalSupply.toString()
-      };
+      const tx = await vaultContract.claimYield(feederAddress);
+      await tx.wait();
+      toast.success('Yield claimed successfully');
+      logger(`Yield claimed for: ${feederAddress}`);
+      return { success: true, txHash: tx.hash };
     } catch (error) {
-      logger(`Error fetching basket config: ${error.message}`);
-      return;
+      logger(`Claim yield error: ${error.message}`);
+      toast.error('Failed to claim yield');
+      return { success: false, error: error.message };
     }
   };
+
+  const getFeederInfo = async (feederAddress) => {
+    if (!vaultContract) {
+      logger('Vault contract not initialized');
+      return null;
+    }
+
+    try {
+      const info = await vaultContract.getFeederInfo(feederAddress);
+      logger(`Fetched feeder info: ${feederAddress}`);
+      return {
+        did: info.did,
+        stablecoinBalance: ethers.formatUnits(info.stablecoinBalance, 18),
+        depositTimestamp: info.depositTimestamp.toNumber(),
+        yieldEarned: ethers.formatUnits(info.yieldEarned, 18),
+        verified: info.verified,
+      };
+    } catch (error) {
+      logger(`Get feeder info error: ${error.message}`);
+      return null;
+    }
+  };
+
+  const calculateYield = async (feederAddress) => {
+    if (!vaultContract) {
+      logger('Vault contract not initialized');
+      return null;
+    }
+
+    try {
+      const yield_ = await vaultContract.calculateYield(feederAddress);
+      return ethers.formatUnits(yield_, 18);
+    } catch (error) {
+      logger(`Calculate yield error: ${error.message}`);
+      return null;
+    }
+  };
+
+  const getTotalFeederLiquidity = async () => {
+    if (!vaultContract) {
+      logger('Vault contract not initialized');
+      return null;
+    }
+
+    try {
+      const total = await vaultContract.getTotalFeederLiquidity();
+      return ethers.formatUnits(total, 18);
+    } catch (error) {
+      logger(`Get total liquidity error: ${error.message}`);
+      return null;
+    }
+  };
+
+  const formatAddress = (address) =>
+    address && address !== 'null' && address !== ''
+      ? `${address.slice(0, 6)}...${address.slice(-4)}`
+      : '';
 
   const value = {
-    // State
-    wallet,
     walletAddress,
-    walletType,
-    connection,
-    anchorProvider,
-    program,
     connected,
     connecting,
-    walletConnected: connected && wallet && anchorProvider ? true : false,
-
-    // Actions
+    provider,
+    signer,
+    vaultContract,
+    walletConnected: connected && wallet && signer ? true : false,
     connectWallet,
     disconnectWallet,
-    signTransaction,
-    signAllTransactions,
-    signMessage,
-    sendTransaction,
-    getBalance,
-    setAnchorProvider,
-
-    // Basket operations
-    createBasket,
-    getFactoryInfo,
-    getBasketConfig,
-    buyBasket,
-
-    // Utilities
-    formatAddress: (address) => address ? `${address.slice(0, 4)}...${address.slice(-4)}` : '',
+    registerFeeder,
+    depositLiquidity,
+    withdrawLiquidity,
+    claimYield,
+    getFeederInfo,
+    calculateYield,
+    getTotalFeederLiquidity,
+    formatAddress,
   };
 
   return (
@@ -645,7 +486,6 @@ export const WalletProvider = ({ children }) => {
   );
 };
 
-// Custom hook to use wallet context
 export const useWallet = () => {
   const context = useContext(WalletContext);
   if (!context) {

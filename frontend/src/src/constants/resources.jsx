@@ -1,6 +1,7 @@
+import { BarChart3, DollarSign, Globe, Shield, Target, TrendingUp, Users, Zap } from "lucide-react";
+import React from 'react';
 
-
- const mockBaskets = [
+export const mockBaskets = [
   {
     id: 1,
     name: "AI Projects Basket",
@@ -56,7 +57,7 @@
   }
 ];
 
- const features = [
+export const features = [
   {
     icon: <Zap className="w-8 h-8" />,
     title: "One-Click Diversification",
@@ -79,16 +80,100 @@
   }
 ];
 
- const stats = [
+export const stats = [
   { label: "Total Value Locked", value: "$12.4M", icon: <DollarSign className="w-5 h-5" /> },
   { label: "Active Baskets", value: "47", icon: <Target className="w-5 h-5" /> },
   { label: "Total Holders", value: "8.2K", icon: <Users className="w-5 h-5" /> },
   { label: "Avg 7D Performance", value: "+5.8%", icon: <TrendingUp className="w-5 h-5" /> }
 ];
+// Vault ABI
+export const VAULT_ABI = [
+  {
+    inputs: [
+      { internalType: 'string', name: 'did', type: 'string' },
+      { internalType: 'address', name: 'feederAddress', type: 'address' },
+    ],
+    name: 'registerFeeder',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'feeder', type: 'address' },
+      { internalType: 'address', name: 'stablecoin', type: 'address' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
+    ],
+    name: 'depositLiquidity',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'address', name: 'feeder', type: 'address' },
+      { internalType: 'address', name: 'stablecoin', type: 'address' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
+    ],
+    name: 'withdrawLiquidity',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'feeder', type: 'address' }],
+    name: 'claimYield',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'feeder', type: 'address' }],
+    name: 'calculateYield',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'feeder', type: 'address' }],
+    name: 'getFeederInfo',
+    outputs: [
+      {
+        components: [
+          { internalType: 'string', name: 'did', type: 'string' },
+          { internalType: 'uint256', name: 'stablecoinBalance', type: 'uint256' },
+          { internalType: 'uint256', name: 'depositTimestamp', type: 'uint256' },
+          { internalType: 'uint256', name: 'yieldEarned', type: 'uint256' },
+          { internalType: 'bool', name: 'verified', type: 'bool' },
+        ],
+        internalType: 'struct FeedersVault.Feeder',
+        name: '',
+        type: 'tuple',
+      },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'getTotalFeederLiquidity',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+];
 
-
-exports = {
-  mockBaskets,
-  features,
-  stats
+// Hedera Testnet Configuration
+export const HEDERA_TESTNET = {
+  chainId: '0x128', // 296 in decimal
+  chainIdDecimal: 296,
+  rpcUrl: 'https://testnet.hashio.io/api',
+  chainName: 'Hedera Testnet',
+  nativeCurrency: {
+    name: 'HBAR',
+    symbol: 'HBAR',
+    decimals: 18,
+  },
+  blockExplorerUrl: 'https://hashscan.io/testnet',
 };
+
