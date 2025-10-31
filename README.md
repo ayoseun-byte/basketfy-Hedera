@@ -4,7 +4,7 @@
 **Built with:** Hedera Token Service (HTS) • Hedera Smart Contract Service (HSCS) • Hedera Consensus Service (HCS) • Hedera DID
 
 
-(PitchDeck)[https://drive.google.com/file/d/1zoco-MhcD07vHD5_x9zrPVcgMuuM2ftR/view?usp=sharing]
+[PitchDeck](https://drive.google.com/file/d/1zoco-MhcD07vHD5_x9zrPVcgMuuM2ftR/view?usp=sharing)
 ---
 
 ## 🌍 Overview
