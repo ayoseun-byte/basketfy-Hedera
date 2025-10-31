@@ -12,7 +12,8 @@ import Header from '../components/header';
 import { useNavigate } from 'react-router-dom';
 import { getBaskets } from '../api/basketApi';
 import logger from '../uutils/logger';
-import { stats } from '../../App';
+import { stats } from '../constants/resources';
+
 
 const BasketsPage = ({
     darkMode,

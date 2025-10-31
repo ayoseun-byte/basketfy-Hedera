@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, Wallet, ChevronDown, Copy, ExternalLink, Bell, Menu, X } from 'lucide-react';
-import { useWallet } from '../hook/wallet';
+
 import { useNavigate } from 'react-router-dom';
 import { toggleDarkMode, selectCuratorData, selectUserData, selectFeederData } from '../store/store';
 import { useSelector, useDispatch } from 'react-redux';
+import { useWallet } from '../hook/wallet';
 
 const Header = ({
   route,

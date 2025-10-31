@@ -1,45 +1,176 @@
-import React, { useState } from 'react';
-import { Wallet, TrendingUp, Activity, DollarSign, ArrowUpRight, ArrowDownLeft, Plus, X, ExternalLink, ChevronDown, PieChart, BarChart3, Clock, Zap, ArrowRight, Menu } from 'lucide-react';
-import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart as RePieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { useHashpackWallet } from  '../../hook/useHashpackWallet';
+import React, { useState, useRef, useEffect } from 'react';
+import { Wallet, TrendingUp, Activity, DollarSign, ArrowUpRight, ArrowDownLeft, Plus, X, ExternalLink, ChevronDown, PieChart, BarChart3, Clock, Zap, ArrowRight, Copy } from 'lucide-react';
+import { LineChart, Line, AreaChart, Area, PieChart as RePieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useSelector, useDispatch } from 'react-redux';
+import { Client, AccountId, AccountBalanceQuery, Hbar } from '@hashgraph/sdk';
+import {
+  useAppKitState,
+  useAppKitEvents,
+  useAppKitAccount,
+  useWalletInfo
+} from '@reown/appkit/react'
+
+import { useDisconnect, useAppKit, useAppKitNetwork } from '@reown/appkit/react'
+ const { ethers, Contract } = await import('ethers');
+
+import { useNavigate } from 'react-router-dom';
 
 const FeederDashboard = () => {
-   const { 
-    accountId: walletAddress, 
-    connected, 
-    loading,
-    connect, 
-    disconnect, 
-    formatAddress 
-  } = useHashpackWallet();
-
+  const { open, close } = useAppKit();
+  const { disconnect } = useDisconnect();
+  const { switchNetwork } = useAppKitNetwork();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [selectedChain, setSelectedChain] = useState('');
   const [selectedToken, setSelectedToken] = useState('');
+  const navigate = useNavigate();
+  // Get all state from Redux
+  const isDarkMode = useSelector((state) => state.global.isDarkMode);
+  const state = useAppKitState();
+  const { address, caipAddress, isConnected, status, embeddedWalletInfo, } = useAppKitAccount();
+  const events = useAppKitEvents()
+  const { walletInfo } = useWalletInfo()
+  const [isOpen, setIsOpen] = useState(false);
+  const [dropdownRef2, setDropdownRef2] = useState(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef2 && !dropdownRef2.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [dropdownRef2]);
+
   const [amount, setAmount] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const dispatch = useDispatch();
 
- const chains = [
-  { id: 'hedera', name: 'Hedera', icon: '⚡', color: '#00C4B4' },
-  { id: 'ethereum', name: 'Ethereum', icon: '⟠', color: '#627EEA' },
-  { id: 'polygon', name: 'Polygon', icon: '⬡', color: '#8247E5' },
-  { id: 'arbitrum', name: 'Arbitrum', icon: '◢', color: '#28A0F0' }
-];
 
- const tokens = [
-  { id: 'hbar', name: 'HBAR', balance: '10,500.00', logo: '⚡' },
-  { id: 'usdc', name: 'USDC', balance: '5,200.00', logo: '💵' },
-  { id: 'fdk', name: 'FDK', balance: '8,750.00', logo: '🪙' }
-];
+  const [tokens, setTokenBalances] = useState([
+    { id: 'hbar', name: 'HBAR', balance: '0', logo: "", isNative: true },
+    { id: 'usdc', name: 'USDC', balance: '0', logo: "", contractAddress: '0x0000000000000000000000000000000000068cda', decimals: 6 },
+    { id: 'husd', name: 'HUSD', balance: '0', logo: '', contractAddress: '0x0000000000000000000000000000000000163b5a', decimals: 6 }
+  ]);
 
- const liquidityData = [
-  { chain: 'Hedera', amount: 32000, percentage: 40, apy: 9.5, utilization: 75, idle: 8000, active: 24000 },
-  { chain: 'Ethereum', amount: 25000, percentage: 31, apy: 8.5, utilization: 68, idle: 8000, active: 17000 },
-  { chain: 'Polygon', amount: 15000, percentage: 19, apy: 9.2, utilization: 72, idle: 4200, active: 10800 },
-  { chain: 'Arbitrum', amount: 8000, percentage: 10, apy: 7.8, utilization: 65, idle: 2800, active: 5200 }
-];
+  // Human-readable ERC-20 ABI (only the functions we need)
+  const ERC20_ABI = [
+    'function balanceOf(address owner) view returns (uint256)',
+    'function decimals() view returns (uint8)',
+    'function symbol() view returns (string)',
+    'function name() view returns (string)'
+  ];
+
+  // Function to fetch ERC-20 token balances
+  const fetchEvmTokenBalances = async (walletAddress) => {
+    if (!walletAddress || !window.ethereum) return;
+
+    try {
+     
+      const provider = new ethers.BrowserProvider(window.ethereum);
+
+      const updatedTokens = [...tokens];
+
+      for (let i = 0; i < updatedTokens.length; i++) {
+        const token = updatedTokens[i];
+
+        // Skip native HBAR
+        if (token.isNative) continue;
+
+        try {
+          const contract = new Contract(token.contractAddress, ERC20_ABI, provider);
+          const rawBalance = await contract.balanceOf(walletAddress);
+          const decimals = token.decimals || await contract.decimals();
+          const formatted = ethers.formatUnits(rawBalance, decimals);
+          updatedTokens[i].balance = parseFloat(formatted).toFixed(2);
+        } catch (err) {
+          console.warn(`Error fetching ${token.name} balance:`, err);
+          updatedTokens[i].balance = '0';
+        }
+      }
+
+      setTokenBalances(updatedTokens);
+    } catch (err) {
+      console.error('Error fetching EVM token balances:', err);
+    }
+  };
+
+  // Function to fetch HBAR balance from Hedera
+  const fetchHbarBalance = async (hederaAccountId) => {
+    try {
+      const client = Client.forTestnet();
+
+      // Convert EVM address to Hedera Account ID
+      let accountId;
+      if (hederaAccountId.startsWith('0x')) {
+        // Try to derive account ID from EVM address
+        const evmAddress = hederaAccountId.toLowerCase();
+        accountId = AccountId.fromEvmAddress(0, 0, evmAddress.toString());
+        console.log("Derived Account ID from EVM address:", accountId.toString());
+      } else {
+        accountId = AccountId.fromString(hederaAccountId);
+      }
+
+      console.log("Fetching HBAR balance for account:", accountId.toString());
+
+      const query = new AccountBalanceQuery().setAccountId(accountId);
+      const balance = await query.execute(client);
+
+      // Convert Hbar to number (balance.hbars is already an Hbar object)
+      const hbarAmount = balance.hbars.toTinybars().toNumber() / 100000000; // Convert tinybars to HBAR
+      console.log("HBAR Balance:", hbarAmount);
+
+      // Update tokens state
+      setTokenBalances(prevTokens => {
+        const updatedTokens = [...prevTokens];
+        const hbarIndex = updatedTokens.findIndex(t => t.id === 'hbar');
+        if (hbarIndex !== -1) {
+          updatedTokens[hbarIndex].balance = hbarAmount.toFixed(2);
+        }
+        return updatedTokens;
+      });
+
+      client.close();
+    } catch (err) {
+      console.error('Error fetching HBAR balance:', err);
+    }
+  };
+
+
+
+
+  useEffect(() => {
+    console.log("Events: ", events);
+  }, [events]);
+
+  const dropdownRef = useRef(null);
+
+  const chains = [
+    { id: 'hedera', name: 'Ethereum', icon: '⟠', color: '#627EEA' }
+  ];
+
+
+  // Effect: when connected & address changes
+  useEffect(() => {
+    if (!isConnected || !address) {
+
+      return;
+    }
+    fetchHbarBalance(address);
+    // For EVM tokens
+    // fetchEvmTokenBalances(address);
+  }, [isConnected, address]);
+
+
+  const liquidityData = [
+    { chain: 'Ethereum', amount: 25000, percentage: 35, apy: 8.5, utilization: 68, idle: 8000, active: 17000 },
+    { chain: 'Polygon', amount: 18500, percentage: 26, apy: 9.2, utilization: 72, idle: 5180, active: 13320 },
+    { chain: 'Arbitrum', amount: 15200, percentage: 21, apy: 7.8, utilization: 65, idle: 5320, active: 9880 },
+    { chain: 'Base', amount: 12800, percentage: 18, apy: 8.9, utilization: 70, idle: 3840, active: 8960 }
+  ];
 
   const earningsHistory = [
     { date: 'Oct 20', idle: 120, usage: 80, total: 200 },
@@ -68,11 +199,23 @@ const FeederDashboard = () => {
   }));
 
   const recentActivity = [
-  { type: 'deposit', amount: 5000, token: 'HBAR', chain: 'Hedera', time: '2 hours ago', txHash: '0.0.1234...5678' },
-  { type: 'yield', amount: 125.50, token: 'USDC', chain: 'Hedera', time: '5 hours ago', txHash: '0.0.abcd...efgh' },
-  { type: 'usage', amount: 2500, token: 'FDK', chain: 'Hedera', time: '8 hours ago', txHash: '0.0.9876...5432' },
-  { type: 'withdraw', amount: 1500, token: 'HBAR', chain: 'Hedera', time: '12 hours ago', txHash: '0.0.fedc...ba98' }
-];
+    { type: 'deposit', amount: 5000, token: 'USDC', chain: 'Ethereum', time: '2 hours ago', txHash: '0x1234...5678' },
+    { type: 'yield', amount: 125.50, token: 'USDC', chain: 'Polygon', time: '5 hours ago', txHash: '0xabcd...efgh' },
+    { type: 'usage', amount: 2500, token: 'FDK', chain: 'Arbitrum', time: '8 hours ago', txHash: '0x9876...5432' },
+    { type: 'withdraw', amount: 1500, token: 'HUSD', chain: 'Base', time: '12 hours ago', txHash: '0xfedc...ba98' },
+    { type: 'deposit', amount: 3200, token: 'HUSD', chain: 'Base', time: '1 day ago', txHash: '0xfedc...ba98' },
+    { type: 'yield', amount: 89.30, token: 'USDC', chain: 'Ethereum', time: '1 day ago', txHash: '0x5555...6666' }
+  ];
+
+  const handleConnect = () => {
+    // setIsConnected(true);
+    open({ view: 'Connect' });
+
+  };
+  const handleDisconnect = () => {
+    disconnect();
+    navigate('/');
+  };
 
   const handleDeposit = () => {
     if (selectedChain && selectedToken && amount) {
@@ -90,6 +233,21 @@ const FeederDashboard = () => {
       setSelectedToken('');
       setAmount('');
     }
+  };
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
   };
 
   const CustomTooltip = ({ active, payload }) => {
@@ -116,180 +274,185 @@ const FeederDashboard = () => {
         <div className="absolute w-96 h-96 bg-pink-500/10 rounded-full blur-3xl -bottom-48 -right-48 animate-pulse" style={{ animationDelay: '1s' }} />
       </div>
 
-      {/* Header - UPDATED WALLET CONNECTION */}
+      {/* Header */}
       <header className="relative border-b border-purple-500/20 backdrop-blur-xl bg-black/30 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0">
-            
-            {/* Logo Section */}
-            <div className="flex items-center justify-between w-full sm:w-auto">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/50">
-                  <PieChart className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-lg sm:text-2xl font-bold text-white">Basketfy Feeders</h1>
-                  <p className="text-xs sm:text-sm text-purple-300">Liquidity Provider on Hedera</p>
-                </div>
-              </div>
-              
-              {/* Mobile Menu Button */}
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="sm:hidden p-2 text-purple-300 hover:text-white transition-colors"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/50">
+              <PieChart className="w-7 h-7 text-white" />
             </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Basketfy Feeders</h1>
+              <p className="text-sm text-purple-300">Liquidity Provider Dashboard</p>
+            </div>
+          </div>
 
-            {/* Desktop Actions - UPDATED */}
-            <div className="hidden sm:flex items-center gap-2 lg:gap-3">
-              {!connected ? (
-<button
-  onClick={connect}
-  disabled={loading}
-  className="px-6 py-2.5 sm:px-8 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl font-semibold flex items-center gap-2 transition-all shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 text-sm sm:text-base"
->
-  <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />
-  {loading ? "Connecting..." : "Connect Hashpack"}
-  
-</button>) : (
-                <div className="flex items-center gap-2 lg:gap-3">
-                  <button
-                    onClick={() => setShowDepositModal(true)}
-                    className="px-4 py-2 sm:px-6 sm:py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-medium flex items-center gap-2 transition-all shadow-lg shadow-purple-600/30 text-xs sm:text-sm"
-                  >
-                    <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
-                    Deposit
-                  </button>
-                  <button
-                    onClick={() => setShowWithdrawModal(true)}
-                    className="px-4 py-2 sm:px-6 sm:py-2.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-white rounded-lg font-medium flex items-center gap-2 transition-all text-xs sm:text-sm"
-                  >
-                    <ArrowUpRight className="w-3 h-3 sm:w-4 sm:h-4" />
-                    Withdraw
-                  </button>
-                  <div className="px-3 py-2 sm:px-5 sm:py-2.5 bg-purple-500/20 border border-purple-500/30 rounded-lg text-white font-mono text-xs sm:text-sm flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-400 rounded-full animate-pulse" />
-                    {formatAddress(walletAddress) || 'Not connected'}
+
+          {!isConnected ? (
+            <button
+              onClick={handleConnect}
+              className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl font-semibold flex items-center gap-2 transition-all shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50"
+            >
+              <Wallet className="w-5 h-5" />
+              Connect Wallet
+            </button>
+          ) : (
+            <div className="flex items-center gap-3">
+
+              <button
+                onClick={() => setShowDepositModal(true)}
+                className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-medium flex items-center gap-2 transition-all shadow-lg shadow-purple-600/30"
+              >
+                <Plus className="w-4 h-4" />
+                Deposit
+              </button>
+              <button
+                onClick={() => setShowWithdrawModal(true)}
+                className="px-6 py-2.5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-white rounded-lg font-medium flex items-center gap-2 transition-all"
+              >
+                <ArrowUpRight className="w-4 h-4" />
+                Withdraw
+              </button>
+              <button
+                onClick={() => setIsDropdownOpen(true)}
+                className="px-5 py-2.5 bg-purple-500/20 border border-purple-500/30 rounded-lg text-white font-mono text-sm flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                {address.slice(0, 6)}...{address.slice(-4)}
+              </button>
+              {isConnected && isDropdownOpen && (
+                <div className={`absolute right-0 mt-72 w-64 ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                  } border rounded-lg shadow-xl z-20`}>
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                        Wallet Address
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => copyToClipboard(address)}
+                          className={`p-1 rounded hover:${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} transition-colors`}
+                          title="Copy address"
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => window.open(`${address}`, '_blank')}
+                          className={`p-1 rounded hover:${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} transition-colors`}
+                          title="View on Solscan"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className={`p-2 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'} mb-4`}>
+                      <code className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-700'} break-all`}>
+                        {address}
+                      </code>
+                    </div>
+
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => {
+                          // switchNetwork();
+                          setIsDropdownOpen(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm rounded-lg hover:bg-purple-600 hover:text-white transition-colors"
+                      >
+                        Switch Wallet
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          handleDisconnect();
+                          setIsDropdownOpen(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm rounded-lg hover:bg-red-600 hover:text-white transition-colors text-red-500"
+                      >
+                        Disconnect
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          navigate('/curator-dashboard');
+                          setIsDropdownOpen(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm rounded-lg hover:bg-green-600 hover:text-white transition-colors text-green-500"
+                      >
+                        My Baskets
+                      </button>
+                    </div>
                   </div>
-                  <button
-      onClick={disconnect}
-      className="px-3 py-2 sm:px-4 sm:py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium flex items-center gap-2 transition-all text-xs sm:text-sm"
-      title="Disconnect Wallet"
-    >
-      <X className="w-3 h-3 sm:w-4 sm:h-4" />
-    </button>
                 </div>
               )}
             </div>
-
-            {/* Mobile Menu - UPDATED */}
-            {isMobileMenuOpen && (
-              <div className="sm:hidden pt-3 border-t border-purple-500/20">
-                {!connected ? (
-  <button
-  onClick={connect}
-  disabled={loading}
-  className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-lg font-semibold flex items-center justify-center gap-2 transition-all shadow-lg"
->
-  <Wallet className="w-5 h-5" />
-  {loading ? "Connecting..." : "Connect Hashpack"}
- 
-</button>
-) : (
-                  <div className="flex flex-col gap-2">
-                    <button
-                      onClick={() => setShowDepositModal(true)}
-                      className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-all"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Deposit
-                    </button>
-                    <button
-                      onClick={() => setShowWithdrawModal(true)}
-                      className="w-full px-4 py-3 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-all"
-                    >
-                      <ArrowUpRight className="w-4 h-4" />
-                      Withdraw
-                    </button>
-                    <button
-                      onClick={disconnect}
-                      className="w-full px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium flex items-center justify-center gap-2 transition-all"
-                    >
-                      Disconnect
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </header>
 
-      {connected && (
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-          {/* Hero Stats Section - Fixed Grid */}
-          <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-            {[
-              { 
-                title: "Total Liquidity", 
-                value: "$71,500", 
-                subtitle: "Across 4 chains",
-                change: "+12.5%",
-                icon: DollarSign,
-                gradient: "from-purple-500 to-pink-500",
-                border: "border-purple-500/20"
-              },
-              { 
-                title: "Total Earnings", 
-                value: "$5,847", 
-                subtitle: "+$300 this week",
-                change: "+8.2%",
-                icon: TrendingUp,
-                gradient: "from-blue-500 to-cyan-500",
-                border: "border-blue-500/20"
-              },
-              { 
-                title: "Average APY", 
-                value: "8.6%", 
-                subtitle: "Blended rate",
-                change: null,
-                icon: Activity,
-                gradient: "from-green-500 to-emerald-500",
-                border: "border-green-500/20"
-              },
-              { 
-                title: "Active Usage", 
-                value: "$42,300", 
-                subtitle: "59% utilization",
-                change: "+15.3%",
-                icon: Zap,
-                gradient: "from-orange-500 to-red-500",
-                border: "border-orange-500/20"
-              }
-            ].map((stat, index) => (
-              <div key={index} className={`bg-gradient-to-br ${stat.gradient}/10 backdrop-blur-xl border ${stat.border} rounded-xl sm:rounded-2xl p-4 sm:p-6 transition-all hover:scale-105 transform duration-300`}>
-                <div className="flex items-center justify-between mb-3 sm:mb-4">
-                  <div className={`w-10 h-10 sm:w-14 sm:h-14 bg-gradient-to-br ${stat.gradient} rounded-lg sm:rounded-xl flex items-center justify-center shadow-lg`}>
-                    <stat.icon className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
-                  </div>
-                  {stat.change && (
-                    <span className="text-xs font-medium text-green-400 flex items-center gap-1 bg-green-400/10 px-2 py-1 rounded-full">
-                      <TrendingUp className="w-3 h-3" />
-                      {stat.change}
-                    </span>
-                  )}
+      {isConnected && (
+        <div className="relative max-w-7xl mx-auto px-6 py-8">
+          {/* Hero Stats Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 backdrop-blur-xl border border-purple-500/20 rounded-2xl p-6 hover:border-purple-500/40 transition-all hover:scale-105 transform duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <DollarSign className="w-7 h-7 text-white" />
                 </div>
-                <p className="text-xs sm:text-sm font-medium text-gray-300 mb-1">{stat.title}</p>
-                <p className="text-2xl sm:text-4xl font-bold text-white mb-1">{stat.value}</p>
-                <p className="text-xs text-gray-400">{stat.subtitle}</p>
+                <span className="text-xs font-medium text-green-400 flex items-center gap-1 bg-green-400/10 px-2 py-1 rounded-full">
+                  <TrendingUp className="w-3 h-3" />
+                  +12.5%
+                </span>
               </div>
-            ))}
+              <p className="text-sm font-medium text-purple-300 mb-1">Total Liquidity</p>
+              <p className="text-4xl font-bold text-white mb-1">$71,500</p>
+              <p className="text-xs text-purple-400">Across 4 chains</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-xl border border-blue-500/20 rounded-2xl p-6 hover:border-blue-500/40 transition-all hover:scale-105 transform duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <TrendingUp className="w-7 h-7 text-white" />
+                </div>
+                <span className="text-xs font-medium text-green-400 flex items-center gap-1 bg-green-400/10 px-2 py-1 rounded-full">
+                  <TrendingUp className="w-3 h-3" />
+                  +8.2%
+                </span>
+              </div>
+              <p className="text-sm font-medium text-blue-300 mb-1">Total Earnings</p>
+              <p className="text-4xl font-bold text-white mb-1">$5,847</p>
+              <p className="text-xs text-blue-400">+$300 this week</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 backdrop-blur-xl border border-green-500/20 rounded-2xl p-6 hover:border-green-500/40 transition-all hover:scale-105 transform duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <Activity className="w-7 h-7 text-white" />
+                </div>
+              </div>
+              <p className="text-sm font-medium text-green-300 mb-1">Average APY</p>
+              <p className="text-4xl font-bold text-white mb-1">8.6%</p>
+              <p className="text-xs text-green-400">Blended rate</p>
+            </div>
+
+            <div className="bg-gradient-to-br from-orange-500/10 to-red-500/10 backdrop-blur-xl border border-orange-500/20 rounded-2xl p-6 hover:border-orange-500/40 transition-all hover:scale-105 transform duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-red-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <Zap className="w-7 h-7 text-white" />
+                </div>
+                <span className="text-xs font-medium text-green-400 flex items-center gap-1 bg-green-400/10 px-2 py-1 rounded-full">
+                  <TrendingUp className="w-3 h-3" />
+                  +15.3%
+                </span>
+              </div>
+              <p className="text-sm font-medium text-orange-300 mb-1">Active Usage</p>
+              <p className="text-4xl font-bold text-white mb-1">$42,300</p>
+              <p className="text-xs text-orange-400">59% utilization</p>
+            </div>
           </div>
 
-          {/* Navigation Tabs - Fixed Responsive */}
-          <div className="flex gap-1 sm:gap-2 mb-6 sm:mb-8 bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-lg sm:rounded-xl p-1 sm:p-2">
+          {/* Navigation Tabs */}
+          <div className="flex gap-2 mb-8 bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-xl p-2">
             {[
               { id: 'overview', label: 'Overview', icon: PieChart },
               { id: 'analytics', label: 'Analytics', icon: BarChart3 },
@@ -298,113 +461,108 @@ const FeederDashboard = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 px-2 sm:px-4 py-2 sm:py-3 rounded-md sm:rounded-lg font-medium transition-all flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-sm ${
-                  activeTab === tab.id
-                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
-                    : 'text-purple-300 hover:text-white hover:bg-purple-500/10'
-                }`}
+                className={`flex-1 px-6 py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${activeTab === tab.id
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                  : 'text-purple-300 hover:text-white hover:bg-purple-500/10'
+                  }`}
               >
-                <tab.icon className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden xs:inline">{tab.label}</span>
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
               </button>
             ))}
           </div>
 
           {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column - Charts */}
-              <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+              <div className="lg:col-span-2 space-y-6">
                 {/* Earnings History Chart */}
-                <div className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-xl sm:rounded-2xl p-4 sm:p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-2 sm:gap-0">
+                <div className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-2xl p-6">
+                  <div className="flex items-center justify-between mb-6">
                     <div>
-                      <h2 className="text-lg sm:text-xl font-bold text-white">Earnings Overview</h2>
-                      <p className="text-xs sm:text-sm text-purple-300">Daily breakdown of your rewards</p>
+                      <h2 className="text-xl font-bold text-white">Earnings Overview</h2>
+                      <p className="text-sm text-purple-300">Daily breakdown of your rewards</p>
                     </div>
-                    <div className="flex items-center gap-3 sm:gap-4">
-                      <div className="flex items-center gap-1 sm:gap-2">
-                        <div className="w-2 h-2 sm:w-3 sm:h-3 bg-purple-500 rounded-full" />
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-purple-500 rounded-full" />
                         <span className="text-xs text-purple-300">Idle Yield</span>
                       </div>
-                      <div className="flex items-center gap-1 sm:gap-2">
-                        <div className="w-2 h-2 sm:w-3 sm:h-3 bg-pink-500 rounded-full" />
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-pink-500 rounded-full" />
                         <span className="text-xs text-purple-300">Usage Yield</span>
                       </div>
                     </div>
                   </div>
-                  <div className="h-64 sm:h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={earningsHistory}>
-                        <defs>
-                          <linearGradient id="colorIdle" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
-                          </linearGradient>
-                          <linearGradient id="colorUsage" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#ec4899" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#ec4899" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#4c1d95" opacity={0.3} />
-                        <XAxis dataKey="date" stroke="#a78bfa" style={{ fontSize: '10px', sm: '12px' }} />
-                        <YAxis stroke="#a78bfa" style={{ fontSize: '10px', sm: '12px' }} />
-                        <Tooltip content={<CustomTooltip />} />
-                        <Area type="monotone" dataKey="idle" stackId="1" stroke="#a855f7" fill="url(#colorIdle)" />
-                        <Area type="monotone" dataKey="usage" stackId="1" stroke="#ec4899" fill="url(#colorUsage)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={earningsHistory}>
+                      <defs>
+                        <linearGradient id="colorIdle" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorUsage" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#ec4899" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#ec4899" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#4c1d95" opacity={0.3} />
+                      <XAxis dataKey="date" stroke="#a78bfa" style={{ fontSize: '12px' }} />
+                      <YAxis stroke="#a78bfa" style={{ fontSize: '12px' }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area type="monotone" dataKey="idle" stackId="1" stroke="#a855f7" fill="url(#colorIdle)" />
+                      <Area type="monotone" dataKey="usage" stackId="1" stroke="#ec4899" fill="url(#colorUsage)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
 
                 {/* Liquidity Distribution */}
-                <div className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-xl sm:rounded-2xl p-4 sm:p-6">
-                  <h2 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">Liquidity Distribution</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                <div className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-2xl p-6">
+                  <h2 className="text-xl font-bold text-white mb-6">Liquidity Distribution</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="flex items-center justify-center">
-                      <div className="h-48 sm:h-64 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <RePieChart>
-                            <Pie
-                              data={pieData}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={40}
-                              outerRadius={70}
-                              paddingAngle={2}
-                              dataKey="value"
-                            >
-                              {pieData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <Tooltip content={<CustomTooltip />} />
-                          </RePieChart>
-                        </ResponsiveContainer>
-                      </div>
+                      <ResponsiveContainer width="100%" height={250}>
+                        <RePieChart>
+                          <Pie
+                            data={pieData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={100}
+                            paddingAngle={2}
+                            dataKey="value"
+                          >
+                            {pieData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip content={<CustomTooltip />} />
+                        </RePieChart>
+                      </ResponsiveContainer>
                     </div>
-                    <div className="space-y-3 sm:space-y-4">
+                    <div className="space-y-4">
                       {liquidityData.map((item, idx) => (
                         <div key={idx} className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 sm:gap-3">
-                              <div 
-                                className="w-2 h-2 sm:w-3 sm:h-3 rounded-full" 
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-3 h-3 rounded-full"
                                 style={{ backgroundColor: chains.find(c => c.name === item.chain)?.color }}
                               />
                               <div>
-                                <p className="text-white font-medium text-xs sm:text-sm">{item.chain}</p>
+                                <p className="text-white font-medium text-sm">{item.chain}</p>
                                 <p className="text-xs text-purple-300">${item.amount.toLocaleString()}</p>
                               </div>
                             </div>
                             <div className="text-right">
-                              <p className="text-white font-medium text-xs sm:text-sm">{item.percentage}%</p>
+                              <p className="text-white font-medium text-sm">{item.percentage}%</p>
                               <p className="text-xs text-green-400">{item.apy}% APY</p>
                             </div>
                           </div>
-                          <div className="w-full bg-purple-950/50 rounded-full h-1 sm:h-1.5 overflow-hidden">
+                          <div className="w-full bg-purple-950/50 rounded-full h-1.5 overflow-hidden">
                             <div
                               className="h-full rounded-full transition-all duration-500"
-                              style={{ 
+                              style={{
                                 width: `${item.percentage}%`,
                                 backgroundColor: chains.find(c => c.name === item.chain)?.color
                               }}
@@ -417,56 +575,56 @@ const FeederDashboard = () => {
                 </div>
 
                 {/* Liquidity Flow Visualization */}
-                <div className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-xl sm:rounded-2xl p-4 sm:p-6">
-                  <h2 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">Liquidity Flow</h2>
-                  <div className="relative h-48 sm:h-80 flex items-center justify-center">
-                    <div className="absolute w-24 h-24 sm:w-40 sm:h-40 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center shadow-2xl shadow-purple-500/50 z-10">
+                <div className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-2xl p-6">
+                  <h2 className="text-xl font-bold text-white mb-6">Liquidity Flow</h2>
+                  <div className="relative h-80 flex items-center justify-center">
+                    <div className="absolute w-40 h-40 bg-gradient-to-br from-purple-600 to-pink-600 rounded-full flex items-center justify-center shadow-2xl shadow-purple-500/50 z-10">
                       <div className="text-center">
-                        <p className="text-white font-bold text-sm sm:text-2xl">$71.5K</p>
+                        <p className="text-white font-bold text-2xl">$71.5K</p>
                         <p className="text-purple-100 text-xs">Vault Pool</p>
                       </div>
                     </div>
-                    
-                    <div className="absolute top-0 left-0 transform scale-75 sm:scale-100">
-                      <div className="bg-green-500/20 border-2 border-green-500 rounded-lg sm:rounded-xl px-3 py-2 sm:px-6 sm:py-4 backdrop-blur-xl">
-                        <div className="flex items-center gap-1 sm:gap-2 mb-1 sm:mb-2">
-                          <ArrowDownLeft className="w-3 h-3 sm:w-5 sm:h-5 text-green-400" />
-                          <p className="text-green-400 font-bold text-sm sm:text-lg">+$8.2K</p>
+
+                    <div className="absolute top-0 left-0">
+                      <div className="bg-green-500/20 border-2 border-green-500 rounded-xl px-6 py-4 backdrop-blur-xl">
+                        <div className="flex items-center gap-2 mb-2">
+                          <ArrowDownLeft className="w-5 h-5 text-green-400" />
+                          <p className="text-green-400 font-bold text-lg">+$8.2K</p>
                         </div>
-                        <p className="text-green-300 text-xs sm:text-sm">New Deposits</p>
+                        <p className="text-green-300 text-sm">New Deposits</p>
                         <p className="text-green-400/60 text-xs">This week</p>
                       </div>
                     </div>
-                    
-                    <div className="absolute top-0 right-0 transform scale-75 sm:scale-100">
-                      <div className="bg-blue-500/20 border-2 border-blue-500 rounded-lg sm:rounded-xl px-3 py-2 sm:px-6 sm:py-4 backdrop-blur-xl">
-                        <div className="flex items-center gap-1 sm:gap-2 mb-1 sm:mb-2">
-                          <ArrowUpRight className="w-3 h-3 sm:w-5 sm:h-5 text-blue-400" />
-                          <p className="text-blue-400 font-bold text-sm sm:text-lg">$42.3K</p>
+
+                    <div className="absolute top-0 right-0">
+                      <div className="bg-blue-500/20 border-2 border-blue-500 rounded-xl px-6 py-4 backdrop-blur-xl">
+                        <div className="flex items-center gap-2 mb-2">
+                          <ArrowUpRight className="w-5 h-5 text-blue-400" />
+                          <p className="text-blue-400 font-bold text-lg">$42.3K</p>
                         </div>
-                        <p className="text-blue-300 text-xs sm:text-sm">Active Usage</p>
+                        <p className="text-blue-300 text-sm">Active Usage</p>
                         <p className="text-blue-400/60 text-xs">59% utilized</p>
                       </div>
                     </div>
 
-                    <div className="absolute bottom-0 left-0 transform scale-75 sm:scale-100">
-                      <div className="bg-purple-500/20 border-2 border-purple-500 rounded-lg sm:rounded-xl px-3 py-2 sm:px-6 sm:py-4 backdrop-blur-xl">
-                        <div className="flex items-center gap-1 sm:gap-2 mb-1 sm:mb-2">
-                          <Clock className="w-3 h-3 sm:w-5 sm:h-5 text-purple-400" />
-                          <p className="text-purple-400 font-bold text-sm sm:text-lg">$29.2K</p>
+                    <div className="absolute bottom-0 left-0">
+                      <div className="bg-purple-500/20 border-2 border-purple-500 rounded-xl px-6 py-4 backdrop-blur-xl">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Clock className="w-5 h-5 text-purple-400" />
+                          <p className="text-purple-400 font-bold text-lg">$29.2K</p>
                         </div>
-                        <p className="text-purple-300 text-xs sm:text-sm">Idle Liquidity</p>
+                        <p className="text-purple-300 text-sm">Idle Liquidity</p>
                         <p className="text-purple-400/60 text-xs">Earning yield</p>
                       </div>
                     </div>
 
-                    <div className="absolute bottom-0 right-0 transform scale-75 sm:scale-100">
-                      <div className="bg-pink-500/20 border-2 border-pink-500 rounded-lg sm:rounded-xl px-3 py-2 sm:px-6 sm:py-4 backdrop-blur-xl">
-                        <div className="flex items-center gap-1 sm:gap-2 mb-1 sm:mb-2">
-                          <TrendingUp className="w-3 h-3 sm:w-5 sm:h-5 text-pink-400" />
-                          <p className="text-pink-400 font-bold text-sm sm:text-lg">+$300</p>
+                    <div className="absolute bottom-0 right-0">
+                      <div className="bg-pink-500/20 border-2 border-pink-500 rounded-xl px-6 py-4 backdrop-blur-xl">
+                        <div className="flex items-center gap-2 mb-2">
+                          <TrendingUp className="w-5 h-5 text-pink-400" />
+                          <p className="text-pink-400 font-bold text-lg">+$300</p>
                         </div>
-                        <p className="text-pink-300 text-xs sm:text-sm">Weekly Yield</p>
+                        <p className="text-pink-300 text-sm">Weekly Yield</p>
                         <p className="text-pink-400/60 text-xs">+8.2% growth</p>
                       </div>
                     </div>
@@ -475,70 +633,68 @@ const FeederDashboard = () => {
               </div>
 
               {/* Right Column */}
-              <div className="space-y-4 sm:space-y-6">
-                <div className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-xl sm:rounded-2xl p-4 sm:p-6">
-                  <h2 className="text-base sm:text-lg font-bold text-white mb-3 sm:mb-4">Quick Actions</h2>
-                  <div className="space-y-2 sm:space-y-3">
-                    <button 
+              <div className="space-y-6">
+                <div className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-2xl p-6">
+                  <h2 className="text-lg font-bold text-white mb-4">Quick Actions</h2>
+                  <div className="space-y-3">
+                    <button
                       onClick={() => setShowDepositModal(true)}
-                      className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-lg font-medium transition-all flex items-center justify-center gap-2 shadow-lg text-sm sm:text-base"
+                      className="w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-lg font-medium transition-all flex items-center justify-center gap-2 shadow-lg"
                     >
-                      <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <Plus className="w-4 h-4" />
                       Add Liquidity
                     </button>
-                    <button 
+                    <button
                       onClick={() => setShowWithdrawModal(true)}
-                      className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg font-medium transition-all flex items-center justify-center gap-2 text-sm sm:text-base"
+                      className="w-full px-4 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg font-medium transition-all flex items-center justify-center gap-2"
                     >
-                      <ArrowUpRight className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <ArrowUpRight className="w-4 h-4" />
                       Withdraw
                     </button>
-                    <button className="w-full px-3 py-2 sm:px-4 sm:py-3 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg font-medium transition-all flex items-center justify-center gap-2 text-sm sm:text-base">
-                      <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <button className="w-full px-4 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg font-medium transition-all flex items-center justify-center gap-2">
+                      <TrendingUp className="w-4 h-4" />
                       Claim Rewards
                     </button>
                   </div>
                 </div>
 
-                <div className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-xl sm:rounded-2xl p-4 sm:p-6">
-                  <div className="flex items-center justify-between mb-4 sm:mb-6">
-                    <h2 className="text-base sm:text-lg font-bold text-white">Recent Activity</h2>
-                    <button className="text-xs sm:text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1">
+                <div className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-2xl p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-bold text-white">Recent Activity</h2>
+                    <button className="text-sm text-purple-400 hover:text-purple-300 flex items-center gap-1">
                       View All
-                      <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
-                  <div className="space-y-2 sm:space-y-3 max-h-64 sm:max-h-96 overflow-y-auto">
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
                     {recentActivity.map((activity, idx) => (
-                      <div key={idx} className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 bg-purple-500/5 rounded-lg sm:rounded-xl hover:bg-purple-500/10 transition-all cursor-pointer">
-                        <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                          activity.type === 'deposit' ? 'bg-green-500/20' :
+                      <div key={idx} className="flex items-start gap-3 p-3 bg-purple-500/5 rounded-xl hover:bg-purple-500/10 transition-all cursor-pointer">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${activity.type === 'deposit' ? 'bg-green-500/20' :
                           activity.type === 'yield' ? 'bg-purple-500/20' :
-                          activity.type === 'withdraw' ? 'bg-orange-500/20' :
-                          'bg-blue-500/20'
-                        }`}>
-                          {activity.type === 'deposit' ? <ArrowDownLeft className="w-3 h-3 sm:w-4 sm:h-4 text-green-400" /> :
-                           activity.type === 'yield' ? <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4 text-purple-400" /> :
-                           activity.type === 'withdraw' ? <ArrowUpRight className="w-3 h-3 sm:w-4 sm:h-4 text-orange-400" /> :
-                           <Activity className="w-3 h-3 sm:w-4 sm:h-4 text-blue-400" />}
+                            activity.type === 'withdraw' ? 'bg-orange-500/20' :
+                              'bg-blue-500/20'
+                          }`}>
+                          {activity.type === 'deposit' ? <ArrowDownLeft className="w-5 h-5 text-green-400" /> :
+                            activity.type === 'yield' ? <TrendingUp className="w-5 h-5 text-purple-400" /> :
+                              activity.type === 'withdraw' ? <ArrowUpRight className="w-5 h-5 text-orange-400" /> :
+                                <Activity className="w-5 h-5 text-blue-400" />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1">
-                            <p className="text-white font-medium capitalize text-xs sm:text-sm">{activity.type}</p>
-                            <p className={`text-xs sm:text-sm font-semibold ${
-                              activity.type === 'deposit' ? 'text-green-400' :
+                            <p className="text-white font-medium capitalize text-sm">{activity.type}</p>
+                            <p className={`text-sm font-semibold ${activity.type === 'deposit' ? 'text-green-400' :
                               activity.type === 'yield' ? 'text-purple-400' :
-                              activity.type === 'withdraw' ? 'text-orange-400' :
-                              'text-blue-400'
-                            }`}>
+                                activity.type === 'withdraw' ? 'text-orange-400' :
+                                  'text-blue-400'
+                              }`}>
                               ${activity.amount.toLocaleString()}
                             </p>
                           </div>
-                          <p className="text-xs text-purple-300">{activity.token} · {activity.chain}</p>
-                          <div className="flex items-center justify-between mt-1 sm:mt-2">
+                          <p className="text-sm text-purple-300">{activity.token} · {activity.chain}</p>
+                          <div className="flex items-center justify-between mt-2">
                             <p className="text-xs text-purple-400">{activity.time}</p>
                             <a href="#" className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1">
-                              <ExternalLink className="w-2 h-2 sm:w-3 sm:h-3" />
+                              <ExternalLink className="w-3 h-3" />
                             </a>
                           </div>
                         </div>
@@ -546,59 +702,58 @@ const FeederDashboard = () => {
                     ))}
                   </div>
                 </div>
+
               </div>
             </div>
           )}
 
           {activeTab === 'analytics' && (
-            <div className="space-y-4 sm:space-y-6">
-              <div className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-xl sm:rounded-2xl p-4 sm:p-6">
-                <h2 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">Utilization Trend</h2>
-                <div className="h-64 sm:h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={utilizationTrend}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#4c1d95" opacity={0.3} />
-                      <XAxis dataKey="time" stroke="#a78bfa" style={{ fontSize: '10px', sm: '12px' }} />
-                      <YAxis stroke="#a78bfa" style={{ fontSize: '10px', sm: '12px' }} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Line type="monotone" dataKey="utilization" stroke="#a855f7" strokeWidth={3} dot={{ fill: '#a855f7', r: 4 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+            <div className="space-y-6">
+              <div className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-2xl p-6">
+                <h2 className="text-xl font-bold text-white mb-6">Utilization Trend</h2>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={utilizationTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#4c1d95" opacity={0.3} />
+                    <XAxis dataKey="time" stroke="#a78bfa" style={{ fontSize: '12px' }} />
+                    <YAxis stroke="#a78bfa" style={{ fontSize: '12px' }} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Line type="monotone" dataKey="utilization" stroke="#a855f7" strokeWidth={3} dot={{ fill: '#a855f7', r: 4 }} />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {liquidityData.map((item, idx) => (
-                  <div key={idx} className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-xl sm:rounded-2xl p-4 sm:p-6">
-                    <div className="flex items-center justify-between mb-3 sm:mb-4">
-                      <h3 className="text-base sm:text-lg font-bold text-white">{item.chain}</h3>
-                      <span className="text-xl sm:text-2xl">{chains.find(c => c.name === item.chain)?.icon}</span>
+                  <div key={idx} className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-2xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold text-white">{item.chain}</h3>
+                      <span className="text-2xl">{chains.find(c => c.name === item.chain)?.icon}</span>
                     </div>
-                    <div className="space-y-3 sm:space-y-4">
+                    <div className="space-y-4">
                       <div>
-                        <div className="flex items-center justify-between mb-1 sm:mb-2">
-                          <span className="text-xs sm:text-sm text-purple-300">Total Deposited</span>
-                          <span className="text-white font-bold text-sm sm:text-base">${item.amount.toLocaleString()}</span>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm text-purple-300">Total Deposited</span>
+                          <span className="text-white font-bold">${item.amount.toLocaleString()}</span>
                         </div>
-                        <div className="flex items-center justify-between mb-1 sm:mb-2">
-                          <span className="text-xs sm:text-sm text-purple-300">Active</span>
-                          <span className="text-blue-400 font-semibold text-sm sm:text-base">${item.active.toLocaleString()}</span>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm text-purple-300">Active</span>
+                          <span className="text-blue-400 font-semibold">${item.active.toLocaleString()}</span>
                         </div>
-                        <div className="flex items-center justify-between mb-1 sm:mb-2">
-                          <span className="text-xs sm:text-sm text-purple-300">Idle</span>
-                          <span className="text-purple-400 font-semibold text-sm sm:text-base">${item.idle.toLocaleString()}</span>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm text-purple-300">Idle</span>
+                          <span className="text-purple-400 font-semibold">${item.idle.toLocaleString()}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-xs sm:text-sm text-purple-300">APY</span>
-                          <span className="text-green-400 font-bold text-sm sm:text-base">{item.apy}%</span>
+                          <span className="text-sm text-purple-300">APY</span>
+                          <span className="text-green-400 font-bold">{item.apy}%</span>
                         </div>
                       </div>
                       <div>
-                        <div className="flex items-center justify-between mb-1 sm:mb-2">
+                        <div className="flex items-center justify-between mb-2">
                           <span className="text-xs text-purple-400">Utilization</span>
-                          <span className="text-xs sm:text-sm text-white font-medium">{item.utilization}%</span>
+                          <span className="text-xs text-white font-medium">{item.utilization}%</span>
                         </div>
-                        <div className="w-full bg-purple-950/50 rounded-full h-1.5 sm:h-2 overflow-hidden">
+                        <div className="w-full bg-purple-950/50 rounded-full h-2 overflow-hidden">
                           <div
                             className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-purple-500 to-pink-500"
                             style={{ width: `${item.utilization}%` }}
@@ -613,37 +768,35 @@ const FeederDashboard = () => {
           )}
 
           {activeTab === 'activity' && (
-            <div className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-xl sm:rounded-2xl p-4 sm:p-6">
-              <h2 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">All Activity</h2>
-              <div className="space-y-3 sm:space-y-4">
+            <div className="bg-black/30 backdrop-blur-xl border border-purple-500/20 rounded-2xl p-6">
+              <h2 className="text-xl font-bold text-white mb-6">All Activity</h2>
+              <div className="space-y-3">
                 {recentActivity.map((activity, idx) => (
-                  <div key={idx} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 bg-purple-500/5 rounded-lg sm:rounded-xl hover:bg-purple-500/10 transition-all cursor-pointer border border-purple-500/10">
-                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      activity.type === 'deposit' ? 'bg-green-500/20' :
+                  <div key={idx} className="flex items-start gap-4 p-4 bg-purple-500/5 rounded-xl hover:bg-purple-500/10 transition-all cursor-pointer border border-purple-500/10">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${activity.type === 'deposit' ? 'bg-green-500/20' :
                       activity.type === 'yield' ? 'bg-purple-500/20' :
-                      activity.type === 'withdraw' ? 'bg-orange-500/20' :
-                      'bg-blue-500/20'
-                    }`}>
-                      {activity.type === 'deposit' ? <ArrowDownLeft className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" /> :
-                       activity.type === 'yield' ? <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" /> :
-                       activity.type === 'withdraw' ? <ArrowUpRight className="w-4 h-4 sm:w-5 sm:h-5 text-orange-400" /> :
-                       <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />}
+                        activity.type === 'withdraw' ? 'bg-orange-500/20' :
+                          'bg-blue-500/20'
+                      }`}>
+                      {activity.type === 'deposit' ? <ArrowDownLeft className="w-6 h-6 text-green-400" /> :
+                        activity.type === 'yield' ? <TrendingUp className="w-6 h-6 text-purple-400" /> :
+                          activity.type === 'withdraw' ? <ArrowUpRight className="w-6 h-6 text-orange-400" /> :
+                            <Activity className="w-6 h-6 text-blue-400" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-white font-semibold capitalize text-sm sm:text-lg">{activity.type}</p>
-                        <p className={`text-sm sm:text-lg font-bold ${
-                          activity.type === 'deposit' ? 'text-green-400' :
+                        <p className="text-white font-semibold capitalize text-lg">{activity.type}</p>
+                        <p className={`text-lg font-bold ${activity.type === 'deposit' ? 'text-green-400' :
                           activity.type === 'yield' ? 'text-purple-400' :
-                          activity.type === 'withdraw' ? 'text-orange-400' :
-                          'text-blue-400'
-                        }`}>
+                            activity.type === 'withdraw' ? 'text-orange-400' :
+                              'text-blue-400'
+                          }`}>
                           ${activity.amount.toLocaleString()}
                         </p>
                       </div>
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mb-2">
-                        <span className="text-xs sm:text-sm text-purple-300">Token: {activity.token}</span>
-                        <span className="text-xs sm:text-sm text-purple-300">Chain: {activity.chain}</span>
+                      <div className="flex items-center gap-4 mb-2">
+                        <span className="text-sm text-purple-300">Token: {activity.token}</span>
+                        <span className="text-sm text-purple-300">Chain: {activity.chain}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <p className="text-xs text-purple-400">{activity.time}</p>
@@ -661,176 +814,151 @@ const FeederDashboard = () => {
         </div>
       )}
 
-      {/* Deposit Modal - Responsive */}
+      {/* Deposit Modal */}
       {showDepositModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-slate-900 to-purple-900 border border-purple-500/30 rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 max-w-md w-full relative mx-auto max-h-[90vh] overflow-y-auto">
-            <button onClick={() => setShowDepositModal(false)} className="absolute top-3 right-3 sm:top-4 sm:right-4 text-purple-300 hover:text-white transition-colors">
-              <X className="w-5 h-5 sm:w-6 sm:h-6" />
+          <div className="bg-gradient-to-br from-slate-900 to-purple-900 border border-purple-500/30 rounded-2xl p-8 max-w-md w-full relative">
+            <button onClick={() => setShowDepositModal(false)} className="absolute top-4 right-4 text-purple-300 hover:text-white transition-colors">
+              <X className="w-6 h-6" />
             </button>
-            <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Deposit Liquidity</h2>
-            <div className="space-y-4 sm:space-y-5">
+            <h2 className="text-2xl font-bold text-white mb-6">Deposit Liquidity</h2>
+            <div className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-purple-300 mb-2">Select Chain</label>
                 <div className="relative">
-                  <select 
-                    value={selectedChain} 
-                    onChange={(e) => setSelectedChain(e.target.value)} 
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-purple-950/50 border border-purple-500/30 rounded-lg text-white appearance-none cursor-pointer focus:outline-none focus:border-purple-500 text-sm sm:text-base"
-                  >
+                  <select value={selectedChain} onChange={(e) => setSelectedChain(e.target.value)} className="w-full px-4 py-3 bg-purple-950/50 border border-purple-500/30 rounded-lg text-white appearance-none cursor-pointer focus:outline-none focus:border-purple-500">
                     <option value="">Choose a chain</option>
-                    {chains.map((chain) => (
-                      <option key={chain.id} value={chain.id}>
-                        {chain.icon} {chain.name}
-                      </option>
-                    ))}
+                    {chains.map((chain) => (<option key={chain.id} value={chain.id}>{chain.icon} {chain.name}</option>))}
                   </select>
-                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-purple-400 pointer-events-none" />
+                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-purple-400 pointer-events-none" />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-purple-300 mb-2">Select Token</label>
                 <div className="relative">
-                  <select 
-                    value={selectedToken} 
-                    onChange={(e) => setSelectedToken(e.target.value)} 
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-purple-950/50 border border-purple-500/30 rounded-lg text-white appearance-none cursor-pointer focus:outline-none focus:border-purple-500 text-sm sm:text-base"
-                  >
-                    <option value="">Choose a token</option>
-                    {tokens.map((token) => (
-                      <option key={token.id} value={token.id}>
-                        {token.logo} {token.name} (Balance: ${token.balance})
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-purple-400 pointer-events-none" />
+
+
+                  <div className="relative" ref={setDropdownRef2}>
+                    <button
+                      type="button"
+                      onClick={() => setIsOpen(!isOpen)}
+                      className="w-full px-4 py-3 bg-purple-950/50 border border-purple-500/30 rounded-lg text-white text-left cursor-pointer focus:outline-none focus:border-purple-500 flex items-center justify-between"
+                    >
+                      <span className="flex items-center gap-3">
+                        {selectedToken ? (
+                          <>
+                            <img
+                              src= "../../../assets/usdt.svg"
+                              alt={tokens.find(t => t.id === selectedToken)?.name}
+                              className="w-6 h-6 flex-shrink-0 object-contain"
+                            />
+
+                            <span>
+                              {tokens.find(t => t.id === selectedToken)?.name}
+                              (Balance: ${tokens.find(t => t.id === selectedToken)?.balance})
+                            </span>
+                          </>
+                        ) : (
+                          'Choose a token'
+                        )}
+                      </span>
+                      <span className={`text-purple-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}>
+                        ▼
+                      </span>
+                    </button>
+
+                    {isOpen && (
+                      <div className="absolute z-50 w-full mt-2 bg-purple-950 border border-purple-500/30 rounded-lg overflow-hidden shadow-xl max-h-60 overflow-y-auto">
+                        {tokens.map((token) => (
+                          <div
+                            key={token.id}
+                            onClick={() => {
+                              setSelectedToken(token.id);
+                              setIsOpen(false);
+                            }}
+                            className="px-4 py-3 hover:bg-purple-900/50 cursor-pointer text-white flex items-center gap-3 transition-colors"
+                          >
+                            <img src={'../../../assets/usdt.svg'} className="w-6 h-6 flex-shrink-0"></img>
+                            <span>{token.name} (Balance: ${token.balance})</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-purple-400 pointer-events-none" />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-purple-300 mb-2">Amount</label>
                 <div className="relative">
-                  <input 
-                    type="number" 
-                    value={amount} 
-                    onChange={(e) => setAmount(e.target.value)} 
-                    placeholder="0.00" 
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-purple-950/50 border border-purple-500/30 rounded-lg text-white placeholder-purple-400 focus:outline-none focus:border-purple-500 text-sm sm:text-base" 
-                  />
-                  <button className="absolute right-3 top-1/2 transform -translate-y-1/2 text-purple-400 hover:text-purple-300 text-xs sm:text-sm font-medium">MAX</button>
+                  <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full px-4 py-3 bg-purple-950/50 border border-purple-500/30 rounded-lg text-white placeholder-purple-400 focus:outline-none focus:border-purple-500" />
+                  <button className="absolute right-3 top-1/2 transform -translate-y-1/2 text-purple-400 hover:text-purple-300 text-sm font-medium">MAX</button>
                 </div>
-                {selectedToken && (
-                  <p className="text-xs text-purple-400 mt-2">
-                    Available: ${tokens.find(t => t.id === selectedToken)?.balance}
-                  </p>
-                )}
+                {selectedToken && (<p className="text-xs text-purple-400 mt-2">Available: ${tokens.find(t => t.id === selectedToken)?.balance}</p>)}
               </div>
               {selectedChain && (
-                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 sm:p-4">
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-purple-300">Expected APY</span>
-                    <span className="text-base sm:text-lg font-bold text-green-400">
-                      {liquidityData.find(l => l.chain.toLowerCase() === chains.find(c => c.id === selectedChain)?.name.toLowerCase())?.apy}%
-                    </span>
+                    <span className="text-lg font-bold text-green-400">{liquidityData.find(l => l.chain.toLowerCase() === chains.find(c => c.id === selectedChain)?.name.toLowerCase())?.apy}%</span>
                   </div>
                 </div>
               )}
-              <div className="flex gap-2 sm:gap-3 pt-2">
-                <button 
-                  onClick={() => setShowDepositModal(false)} 
-                  className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg font-medium transition-all text-sm sm:text-base"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleDeposit} 
-                  disabled={!selectedChain || !selectedToken || !amount} 
-                  className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
-                >
-                  Deposit
-                </button>
+              <div className="flex gap-3 pt-2">
+                <button
+                disabled={!selectedChain || !selectedToken || !amount ||amount > tokens.find(t => t.id === selectedToken)?.balance}
+                 onClick={() =>{
+                   setShowDepositModal(false)
+                   }} className="flex-1 px-4 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg font-medium transition-all">Cancel</button>
+                <button onClick={handleDeposit} disabled={!selectedChain || !selectedToken || !amount} className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed">Deposit</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Withdraw Modal - Responsive */}
+      {/* Withdraw Modal */}
       {showWithdrawModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-slate-900 to-purple-900 border border-purple-500/30 rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8 max-w-md w-full relative mx-auto max-h-[90vh] overflow-y-auto">
-            <button onClick={() => setShowWithdrawModal(false)} className="absolute top-3 right-3 sm:top-4 sm:right-4 text-purple-300 hover:text-white transition-colors">
-              <X className="w-5 h-5 sm:w-6 sm:h-6" />
+          <div className="bg-gradient-to-br from-slate-900 to-purple-900 border border-purple-500/30 rounded-2xl p-8 max-w-md w-full relative">
+            <button onClick={() => setShowWithdrawModal(false)} className="absolute top-4 right-4 text-purple-300 hover:text-white transition-colors">
+              <X className="w-6 h-6" />
             </button>
-            <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Withdraw Liquidity</h2>
-            <div className="space-y-4 sm:space-y-5">
+            <h2 className="text-2xl font-bold text-white mb-6">Withdraw Liquidity</h2>
+            <div className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-purple-300 mb-2">Select Chain</label>
                 <div className="relative">
-                  <select 
-                    value={selectedChain} 
-                    onChange={(e) => setSelectedChain(e.target.value)} 
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-purple-950/50 border border-purple-500/30 rounded-lg text-white appearance-none cursor-pointer focus:outline-none focus:border-purple-500 text-sm sm:text-base"
-                  >
+                  <select value={selectedChain} onChange={(e) => setSelectedChain(e.target.value)} className="w-full px-4 py-3 bg-purple-950/50 border border-purple-500/30 rounded-lg text-white appearance-none cursor-pointer focus:outline-none focus:border-purple-500">
                     <option value="">Choose a chain</option>
-                    {chains.map((chain) => (
-                      <option key={chain.id} value={chain.id}>
-                        {chain.icon} {chain.name}
-                      </option>
-                    ))}
+                    {chains.map((chain) => (<option key={chain.id} value={chain.id}>{chain.icon} {chain.name}</option>))}
                   </select>
-                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-purple-400 pointer-events-none" />
+                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-purple-400 pointer-events-none" />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-purple-300 mb-2">Select Token</label>
                 <div className="relative">
-                  <select 
-                    value={selectedToken} 
-                    onChange={(e) => setSelectedToken(e.target.value)} 
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-purple-950/50 border border-purple-500/30 rounded-lg text-white appearance-none cursor-pointer focus:outline-none focus:border-purple-500 text-sm sm:text-base"
-                  >
+                  <select value={selectedToken} onChange={(e) => setSelectedToken(e.target.value)} className="w-full px-4 py-3 bg-purple-950/50 border border-purple-500/30 rounded-lg text-white appearance-none cursor-pointer focus:outline-none focus:border-purple-500">
                     <option value="">Choose a token</option>
-                    {tokens.map((token) => (
-                      <option key={token.id} value={token.id}>
-                        {token.logo} {token.name}
-                      </option>
-                    ))}
+                    {tokens.map((token) => (<option key={token.id} value={token.id}>{token.logo} {token.name}</option>))}
                   </select>
-                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-purple-400 pointer-events-none" />
+                  <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-purple-400 pointer-events-none" />
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-purple-300 mb-2">Amount</label>
                 <div className="relative">
-                  <input 
-                    type="number" 
-                    value={amount} 
-                    onChange={(e) => setAmount(e.target.value)} 
-                    placeholder="0.00" 
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-purple-950/50 border border-purple-500/30 rounded-lg text-white placeholder-purple-400 focus:outline-none focus:border-purple-500 text-sm sm:text-base" 
-                  />
-                  <button className="absolute right-3 top-1/2 transform -translate-y-1/2 text-purple-400 hover:text-purple-300 text-xs sm:text-sm font-medium">MAX</button>
+                  <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full px-4 py-3 bg-purple-950/50 border border-purple-500/30 rounded-lg text-white placeholder-purple-400 focus:outline-none focus:border-purple-500" />
+                  <button className="absolute right-3 top-1/2 transform -translate-y-1/2 text-purple-400 hover:text-purple-300 text-sm font-medium">MAX</button>
                 </div>
               </div>
-              <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3 sm:p-4">
-                <p className="text-xs sm:text-sm text-orange-300">
-                  Withdrawing will stop earning yield on this amount. Make sure to claim any pending rewards first.
-                </p>
+              <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-4">
+                <p className="text-sm text-orange-300">Withdrawing will stop earning yield on this amount. Make sure to claim any pending rewards first.</p>
               </div>
-              <div className="flex gap-2 sm:gap-3 pt-2">
-                <button 
-                  onClick={() => setShowWithdrawModal(false)} 
-                  className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg font-medium transition-all text-sm sm:text-base"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={handleWithdraw} 
-                  disabled={!selectedChain || !selectedToken || !amount} 
-                  className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
-                >
-                  Withdraw
-                </button>
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setShowWithdrawModal(false)} className="flex-1 px-4 py-3 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg font-medium transition-all">Cancel</button>
+                <button onClick={handleWithdraw} disabled={!selectedChain || !selectedToken || !amount} className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed">Withdraw</button>
               </div>
             </div>
           </div>

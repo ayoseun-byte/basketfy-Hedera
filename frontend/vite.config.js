@@ -9,6 +9,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@reown/appkit/adapters': path.resolve('./node_modules/@reown/appkit/dist/index.js')
     },
   },
   // REMOVE the optimizeDeps section entirely for now

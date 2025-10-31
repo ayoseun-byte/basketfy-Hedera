@@ -89,6 +89,12 @@ export const LandingPage = ({
             <div className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
                 Basketfy
             </div>
+            <div
+                
+                className="px-5 text-black py-2 bg-purple-500/20 border border-purple-500/30 rounded-lg  font-mono text-sm flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                Testnet
+              </div>
             <div className="flex items-center gap-4">
                 <button
                     onClick={() => setDarkMode(!darkMode)}
