@@ -32,10 +32,7 @@ export const LandingPage = ({
     const navigate = useNavigate();
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isDropdownOpen2, setIsDropdownOpen2] = useState(false);
-<<<<<<< HEAD
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-=======
->>>>>>> 1ce3e56937ddbff47cd00b2fdfb8f03f5630dc45
     const dropdownRef = useRef(null);
     const dropdownRef2 = useRef(null);
     const mobileMenuRef = useRef(null);
@@ -61,21 +58,13 @@ export const LandingPage = ({
         const handleClickOutside = (event) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
                 setIsDropdownOpen(false);
-                setIsDropdownOpen2(false);
             }
-<<<<<<< HEAD
             if (dropdownRef2.current && !dropdownRef2.current.contains(event.target)) {
                 setIsDropdownOpen2(false);
             }
             if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target)) {
                 setMobileMenuOpen(false);
             }
-=======
-            if (isDropdownOpen2 && dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-                setIsDropdownOpen2(false);
-            }
-
->>>>>>> 1ce3e56937ddbff47cd00b2fdfb8f03f5630dc45
         };
 
         document.addEventListener('mousedown', handleClickOutside);
@@ -93,53 +82,7 @@ export const LandingPage = ({
                     Basketfy
                 </div>
 
-<<<<<<< HEAD
                 {/* Mobile Menu Button */}
-=======
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setCurrentOffering((prev) => (prev + 1) % offerings.length);
-        }, 1000);
-        return () => clearInterval(interval);
-    }, []);
-
-    return (<div className={`max-w-screen ${darkMode ? 'bg-gradient-to-br from-gray-900 via-purple-900 to-black' : 'bg-gradient-to-br from-white via-purple-50 to-gray-100'} ${darkMode ? 'text-white' : 'text-gray-900'} transition-colors duration-300`}>
-
-        {/* Header */}
-        <header className="flex justify-between items-center p-6 relative z-10">
-            <div className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                Basketfy
-            </div>
-            <button
-                onClick={() => setIsDropdownOpen2(!isDropdownOpen2)}
-                
-                className={`px-5 ${darkMode ? 'text-white' : 'text-black'} py-2 bg-purple-500/20 border border-purple-500/30 rounded-lg  font-mono text-sm flex items-center gap-2`}>
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                Testnet
-                <ChevronDown className="w-4 h-4" />
-                {isDropdownOpen2 && (
-                    <div className={`absolute  left-50 mt-28 w-48 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
-                        } border rounded-lg shadow-xl z-20`}>
-                        <ul className="p-2 space-y-1">
-                            <li>
-                                <button
-                                    onClick={() => {
-                                        navigate("/faucet");
-
-                                        setIsDropdownOpen2(false);
-                                    }}
-                                    className="w-full font-light text-sm text-left  py-2 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-700 transition-colors"
-                                >
-                                    Get Testnet Tokens
-                                </button>
-                            </li>
-
-                        </ul>
-                    </div>
-                )}
-            </button>
-            <div className="flex items-center gap-4">
->>>>>>> 1ce3e56937ddbff47cd00b2fdfb8f03f5630dc45
                 <button
                     onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                     className="sm:hidden p-2 rounded-lg transition-colors"
@@ -250,7 +193,7 @@ export const LandingPage = ({
                 {mobileMenuOpen && (
                     <div 
                         ref={mobileMenuRef}
-                        className="absolute top-16 right-4 sm:hidden bg-gray-800 border border-gray-700 rounded-lg p-4 shadow-xl z-50 min-w-[200px]"
+                        className="absolute top-16 right-4 sm:hidden bg-gray-00 border border-gray-700 rounded-lg p-4 shadow-xl z-50 min-w-[200px]"
                     >
                         <div className="flex flex-col gap-3">
                             <button
