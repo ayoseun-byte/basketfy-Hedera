@@ -16,12 +16,23 @@ import { Contract, BrowserProvider, parseUnits, formatUnits } from 'ethers';
 
 import { useNavigate } from 'react-router-dom';
 import { useFeedersVault } from './contract';
-import { MOCK_USDC_ADDRESS } from '../../constants/config';
+import { MOCK_USDC_ADDRESS,VAULT_CONTRACT_ID } from '../../constants/config';
+
+
 
 const FeederDashboard = () => {
   const { open, close } = useAppKit();
   const { disconnect } = useDisconnect();
-  const {getYieldRate} = useFeedersVault();
+  const { 
+  depositLiquidity, 
+  withdrawLiquidity, 
+  claimYield,
+  getFeederInfo,
+  loading: contractLoading, 
+  error: contractError,
+  address: connectedAddress 
+} = useFeedersVault();
+
   const { switchNetwork } = useAppKitNetwork();
    const { walletProvider } = useAppKitProvider("eip155");
   const events = useAppKitEvents()
@@ -43,6 +54,7 @@ const FeederDashboard = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownRef2, setDropdownRef2] = useState(null);
   const dropdownRef = useRef(null);
+const [transactionStatus, setTransactionStatus] = useState(''); 
   const chains = [
     { id: 'hedera', name: 'Hedera', icon: '⟠', color: '#627EEA' }
   ];
@@ -52,6 +64,7 @@ const FeederDashboard = () => {
     { id: 'usdc', name: 'USDC', balance: '0', logo: "", contractAddress: MOCK_USDC_ADDRESS, decimals: 6 },
     { id: 'husd', name: 'HUSD', balance: '0', logo: '', contractAddress: '0x0000000000000000000000000000000000163b5a', decimals: 6 }
   ]);
+
 
   // Human-readable ERC-20 ABI (only the functions we need)
   const ERC20_ABI = [
@@ -186,23 +199,191 @@ const FeederDashboard = () => {
     navigate('/');
   };
 
-  const handleDeposit = () => {
-    if (selectedChain && selectedToken && amount) {
+  const handleDeposit = async () => {
+  if (!selectedChain || !selectedToken || !amount || !connectedAddress) {
+    setTransactionStatus('Please fill all fields and ensure wallet is connected');
+    return;
+  }
+
+  try {
+    setTransactionStatus('Processing deposit...');
+    
+    const selectedTokenInfo = tokens.find(t => t.id === selectedToken);
+    if (!selectedTokenInfo) {
+      setTransactionStatus('Invalid token selection');
+      return;
+    }
+
+    // // ⚠️ PROPERLY BLOCK HBAR DEPOSITS
+    // if (selectedTokenInfo.isNative || !selectedTokenInfo.contractAddress) {
+    //   setTransactionStatus('HBAR deposits are not supported. Please use USDC or HUSD.');
+    //   return;
+    // }
+
+    // Validate amount
+    const depositAmount = parseFloat(amount);
+    if (isNaN(depositAmount) || depositAmount <= 0) {
+      setTransactionStatus('Please enter a valid amount');
+      return;
+    }
+
+    // Check if user has sufficient balance
+    const userBalance = parseFloat(selectedTokenInfo.balance);
+    if (depositAmount > userBalance) {
+      setTransactionStatus(`Insufficient ${selectedTokenInfo.name} balance`);
+      return;
+    }
+
+    console.log('🔍 DEPOSIT DEBUG INFO:');
+    console.log('Connected Address:', connectedAddress);
+    console.log('Selected Token Info:', selectedTokenInfo);
+    console.log('Token Contract Address:', selectedTokenInfo.contractAddress);
+    console.log('Amount:', depositAmount.toString());
+
+    console.log(`Depositing ${depositAmount} ${selectedTokenInfo.name} for feeder ${connectedAddress}`);
+
+    // ✅ CORRECT: Use depositLiquidity with the right parameters
+    const result = await depositLiquidity(
+      connectedAddress, // feeder address
+      selectedTokenInfo.contractAddress, // stablecoin address  
+      depositAmount.toString() // amount as string
+    );
+
+    // ✅ CORRECT: Your hook returns { tx, receipt } not { success, hash }
+    if (result && result.receipt) {
+      setTransactionStatus(`Deposit successful! Transaction: ${result.tx.hash.slice(0, 10)}...`);
       setShowDepositModal(false);
       setSelectedChain('');
       setSelectedToken('');
       setAmount('');
+      
+      // Refresh balances after successful deposit
+      setTimeout(() => {
+        fetchHbarBalance(connectedAddress);
+        fetchEvmTokenBalances(connectedAddress);
+        if (getFeederInfo) getFeederInfo(connectedAddress); // Refresh vault info
+      }, 3000);
+    } else {
+      setTransactionStatus('Deposit completed but no receipt received');
     }
-  };
+  } catch (error) {
+    console.error('Deposit handler error:', error);
+    setTransactionStatus(`Deposit failed: ${error.message || 'Unknown error'}`);
+  }
+};
 
-  const handleWithdraw = () => {
-    if (selectedChain && selectedToken && amount) {
+ const handleWithdraw = async () => {
+  if (!selectedChain || !selectedToken || !amount || !connectedAddress) {
+    setTransactionStatus('Please fill all fields and ensure wallet is connected');
+    return;
+  }
+
+  try {
+    setTransactionStatus('Checking vault balance...');
+    
+    const selectedTokenInfo = tokens.find(t => t.id === selectedToken);
+    if (!selectedTokenInfo) {
+      setTransactionStatus('Invalid token selection');
+      return;
+    }
+
+    // // ⚠️ BLOCK HBAR WITHDRAWALS
+    // if (selectedTokenInfo.isNative || !selectedTokenInfo.contractAddress) {
+    //   setTransactionStatus('HBAR withdrawals are not supported. Please use USDC or HUSD.');
+    //   return;
+    // }
+
+    // Validate amount
+    const withdrawAmount = parseFloat(amount);
+    if (isNaN(withdrawAmount) || withdrawAmount <= 0) {
+      setTransactionStatus('Please enter a valid amount');
+      return;
+    }
+
+    // ✅ Get your actual vault balance from the contract
+    let vaultBalance = 0;
+    try {
+      const feederInfo = await getFeederInfo(connectedAddress);
+      vaultBalance = parseFloat(feederInfo.stablecoinBalance);
+      console.log(`💰 Your vault balance: ${vaultBalance} ${selectedTokenInfo.name}`);
+    } catch (error) {
+      console.log('No feeder info found - may not be registered yet or no deposits');
+      setTransactionStatus('No vault balance found. You may need to deposit first.');
+      return;
+    }
+    
+    // ✅ Check against VAULT balance, not wallet balance
+    if (withdrawAmount > vaultBalance) {
+      setTransactionStatus(`Insufficient vault balance. You have ${vaultBalance} ${selectedTokenInfo.name} available to withdraw.`);
+      return;
+    }
+
+    console.log('🔍 WITHDRAW DEBUG INFO:');
+    console.log('Connected Address:', connectedAddress);
+    console.log('Selected Token Info:', selectedTokenInfo);
+    console.log('Token Contract Address:', selectedTokenInfo.contractAddress);
+    console.log('Amount:', withdrawAmount.toString());
+
+    console.log(`Withdrawing ${withdrawAmount} ${selectedTokenInfo.name} for feeder ${connectedAddress}`);
+
+    setTransactionStatus('Processing withdrawal...');
+
+    // ✅ CORRECT: Use withdrawLiquidity with the right parameters
+    const result = await withdrawLiquidity(
+      connectedAddress, // feeder address
+      selectedTokenInfo.contractAddress, // stablecoin address
+      withdrawAmount.toString() // amount as string
+    );
+
+    // ✅ CORRECT: Your hook returns { tx, receipt } not { success, hash }
+    if (result && result.receipt) {
+      setTransactionStatus(`Withdrawal successful! Transaction: ${result.tx.hash.slice(0, 10)}...`);
       setShowWithdrawModal(false);
       setSelectedChain('');
       setSelectedToken('');
       setAmount('');
+      
+      // Refresh balances after successful withdrawal
+      setTimeout(() => {
+        fetchHbarBalance(connectedAddress);
+        fetchEvmTokenBalances(connectedAddress);
+        if (getFeederInfo) getFeederInfo(connectedAddress); // Refresh vault balance
+      }, 3000);
+    } else {
+      setTransactionStatus('Withdrawal completed but no receipt received');
     }
-  };
+  } catch (error) {
+    console.error('Withdrawal handler error:', error);
+    setTransactionStatus(`Withdrawal failed: ${error.message || 'Unknown error'}`);
+  }
+};
+
+
+
+const handleClaimRewards = async () => {
+  if (!connectedAddress) {
+    setTransactionStatus('Please connect your wallet first');
+    return;
+  }
+
+  try {
+    setTransactionStatus('Claiming rewards...');
+    
+    const result = await claimYield(connectedAddress);
+    
+    if (result && result.receipt) {
+      setTransactionStatus(`Rewards claimed successfully! Transaction: ${result.tx.hash.slice(0, 10)}...`);
+      
+      // Refresh feeder info to show updated balances
+      setTimeout(() => {
+        if (getFeederInfo) getFeederInfo(connectedAddress);
+      }, 3000);
+    }
+  } catch (error) {
+    console.error('Claim rewards error:', error);
+    setTransactionStatus(`Claim failed: ${error.message || 'Unknown error'}`);
+  }
+};
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
@@ -382,6 +563,29 @@ const FeederDashboard = () => {
           )}
         </div>
       </header>
+
+      {/* Status Display */}
+{transactionStatus && (
+  <div className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-4">
+    <div className={`p-4 rounded-lg border ${
+      transactionStatus.includes('successful') 
+        ? 'bg-green-500/10 border-green-500/30 text-green-400'
+        : transactionStatus.includes('failed') || transactionStatus.includes('error')
+        ? 'bg-red-500/10 border-red-500/30 text-red-400'
+        : 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+    }`}>
+      <div className="flex items-center justify-between">
+        <span className="text-sm">{transactionStatus}</span>
+        <button 
+          onClick={() => setTransactionStatus('')}
+          className="text-xs opacity-70 hover:opacity-100"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {isConnected && (
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-4 md:py-8">
@@ -645,10 +849,23 @@ const FeederDashboard = () => {
                       <ArrowUpRight className="w-3 h-3 md:w-4 md:h-4" />
                       Withdraw
                     </button>
-                    <button className="w-full px-3 py-2 md:px-4 md:py-3 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg font-medium transition-all flex items-center justify-center gap-1 md:gap-2 text-sm md:text-base">
-                      <TrendingUp className="w-3 h-3 md:w-4 md:h-4" />
-                      Claim Rewards
-                    </button>
+                    <button 
+  onClick={handleClaimRewards}
+  disabled={contractLoading}
+  className="w-full px-3 py-2 md:px-4 md:py-3 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg font-medium transition-all flex items-center justify-center gap-1 md:gap-2 text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+>
+  {contractLoading ? (
+    <>
+      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+      Processing...
+    </>
+  ) : (
+    <>
+      <TrendingUp className="w-3 h-3 md:w-4 md:h-4" />
+      Claim Rewards
+    </>
+  )}
+</button>
                   </div>
                 </div>
 
@@ -818,7 +1035,28 @@ const FeederDashboard = () => {
             <button onClick={() => setShowDepositModal(false)} className="absolute top-2 right-2 md:top-4 md:right-4 text-purple-300 hover:text-white transition-colors">
               <X className="w-5 h-5 md:w-6 md:h-6" />
             </button>
-            <h2 className="text-xl md:text-2xl font-bold text-white mb-4 md:mb-6">Deposit Liquidity</h2>
+             <h2 className="text-xl md:text-2xl font-bold text-white mb-4 md:mb-6">Deposit Liquidity</h2>
+
+
+            {transactionStatus && (
+        <div className={`mb-4 p-3 rounded-lg border ${
+          transactionStatus.includes('successful') 
+            ? 'bg-green-500/10 border-green-500/30 text-green-400'
+            : transactionStatus.includes('failed') || transactionStatus.includes('error') || transactionStatus.includes('Insufficient')
+            ? 'bg-red-500/10 border-red-500/30 text-red-400'
+            : 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">{transactionStatus}</span>
+            <button 
+              onClick={() => setTransactionStatus('')}
+              className="text-xs opacity-70 hover:opacity-100"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      )}
             <div className="space-y-4 md:space-y-5">
               <div>
                 <label className="block text-sm font-medium text-purple-300 mb-2">Select Chain</label>
@@ -905,11 +1143,19 @@ const FeederDashboard = () => {
                   Cancel
                 </button>
                 <button 
-                  onClick={handleDeposit} 
-                  className="flex-1 px-3 py-2 md:px-4 md:py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
-                >
-                  Deposit
-                </button>
+  onClick={handleDeposit} 
+  disabled={!selectedChain || !selectedToken || !amount || contractLoading}
+  className="flex-1 px-3 py-2 md:px-4 md:py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base flex items-center justify-center gap-2"
+>
+  {contractLoading ? (
+    <>
+      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+      Processing...
+    </>
+  ) : (
+    'Deposit'
+  )}
+</button>
               </div>
             </div>
           </div>
@@ -924,6 +1170,27 @@ const FeederDashboard = () => {
               <X className="w-5 h-5 md:w-6 md:h-6" />
             </button>
             <h2 className="text-xl md:text-2xl font-bold text-white mb-4 md:mb-6">Withdraw Liquidity</h2>
+
+             {transactionStatus && (
+        <div className={`mb-4 p-3 rounded-lg border ${
+          transactionStatus.includes('successful') 
+            ? 'bg-green-500/10 border-green-500/30 text-green-400'
+            : transactionStatus.includes('failed') || transactionStatus.includes('error') || transactionStatus.includes('Insufficient')
+            ? 'bg-red-500/10 border-red-500/30 text-red-400'
+            : 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span className="text-sm">{transactionStatus}</span>
+            <button 
+              onClick={() => setTransactionStatus('')}
+              className="text-xs opacity-70 hover:opacity-100"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      )}
+
             <div className="space-y-4 md:space-y-5">
               <div>
                 <label className="block text-sm font-medium text-purple-300 mb-2">Select Chain</label>
@@ -957,7 +1224,20 @@ const FeederDashboard = () => {
               </div>
               <div className="flex gap-2 md:gap-3 pt-2">
                 <button onClick={() => setShowWithdrawModal(false)} className="flex-1 px-3 py-2 md:px-4 md:py-3 bg-purple-500/20 hover:bg-purple-500/30 text-white rounded-lg font-medium transition-all text-sm md:text-base">Cancel</button>
-                <button onClick={handleWithdraw} disabled={!selectedChain || !selectedToken || !amount} className="flex-1 px-3 py-2 md:px-4 md:py-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base">Withdraw</button>
+<button 
+  onClick={handleWithdraw} 
+  disabled={!selectedChain || !selectedToken || !amount || contractLoading}
+  className="flex-1 px-3 py-2 md:px-4 md:py-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base flex items-center justify-center gap-2"
+>
+  {contractLoading ? (
+    <>
+      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+      Processing...
+    </>
+  ) : (
+    'Withdraw'
+  )}
+</button>
               </div>
             </div>
           </div>

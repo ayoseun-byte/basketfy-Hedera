@@ -39,6 +39,13 @@ export const useFeedersVault = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+
+  //  console.log("🔍 CONTRACT ADDRESS CHECK:", {
+  //   fromEnv: import.meta.env.VITE_VAULT_CONTRACT_ID,
+  //   fromConfig: VAULT_CONTRACT_ID,
+  //   finalAddress: VAULT_CONTRACT_ADDRESS
+  // });
+
   // ============ READ FUNCTIONS ============
 
   /**
@@ -257,9 +264,13 @@ export const useFeedersVault = () => {
       throw new Error("Wallet not connected");
     }
     
+    
+
     if (!feederAddress || !stablecoinAddress || !amount) {
       throw new Error("All parameters are required");
     }
+
+    console.log("✅ CONTRACT ADDRESS IN DEPOSIT:", VAULT_CONTRACT_ADDRESS);
     
     try {
       setLoading(true);
@@ -311,6 +322,8 @@ export const useFeedersVault = () => {
     if (!feederAddress || !stablecoinAddress || !amount) {
       throw new Error("All parameters are required");
     }
+
+    console.log("✅ WITHDRAW - CONTRACT ADDRESS:", VAULT_CONTRACT_ADDRESS);
     
     try {
       setLoading(true);
